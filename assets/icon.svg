@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- ふたりのひだまり アイコン: ひだまりの中のペット -->
+  <rect width="512" height="512" rx="112" fill="#FDF8EF"/>
+  <circle cx="256" cy="256" r="176" fill="#F9E2B8"/>
+  <circle cx="256" cy="256" r="176" fill="none" stroke="#E9B44C" stroke-width="10" stroke-dasharray="4 26" stroke-linecap="round"/>
+  <!-- からだ -->
+  <ellipse cx="256" cy="300" rx="104" ry="92" fill="#F6E7C9" stroke="#5C4B3A" stroke-width="9"/>
+  <!-- みみ -->
+  <ellipse cx="196" cy="216" rx="26" ry="38" fill="#F6E7C9" stroke="#5C4B3A" stroke-width="9" transform="rotate(-18 196 216)"/>
+  <ellipse cx="316" cy="216" rx="26" ry="38" fill="#F6E7C9" stroke="#5C4B3A" stroke-width="9" transform="rotate(18 316 216)"/>
+  <!-- かお -->
+  <circle cx="222" cy="286" r="12" fill="#5C4B3A"/>
+  <circle cx="290" cy="286" r="12" fill="#5C4B3A"/>
+  <circle cx="226" cy="282" r="4" fill="#fff"/>
+  <circle cx="294" cy="282" r="4" fill="#fff"/>
+  <path d="M240 318 q16 14 32 0" fill="none" stroke="#5C4B3A" stroke-width="8" stroke-linecap="round"/>
+  <ellipse cx="196" cy="312" rx="14" ry="9" fill="#F6C9D2" opacity=".85"/>
+  <ellipse cx="316" cy="312" rx="14" ry="9" fill="#F6C9D2" opacity=".85"/>
+  <!-- ハート(ふたり) -->
+  <g transform="translate(318 148) scale(1.05)">
+    <path d="M28 46 C6 30 2 14 14 6 C22 1 28 6 28 12 C28 6 34 1 42 6 C54 14 50 30 28 46 Z" fill="#EF8E7D" stroke="#5C4B3A" stroke-width="7" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(128 128) scale(.8)">
+    <path d="M28 46 C6 30 2 14 14 6 C22 1 28 6 28 12 C28 6 34 1 42 6 C54 14 50 30 28 46 Z" fill="#6D9BC3" stroke="#5C4B3A" stroke-width="7" stroke-linejoin="round"/>
+  </g>
+</svg>

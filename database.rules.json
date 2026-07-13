@@ -1,0 +1,6 @@
+{
+  "rules": {
+    ".read": "auth != null && (auth.token.email === 'p1@example.com' || auth.token.email === 'p2@example.com')",
+    ".write": "auth != null && (auth.token.email === 'p1@example.com' || auth.token.email === 'p2@example.com')"
+  }
+}
