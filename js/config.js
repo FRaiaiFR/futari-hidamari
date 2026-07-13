@@ -9,6 +9,7 @@
 export const firebaseConfig = {
   apiKey: "AIzaSyBZNKIzDhk9YtSxxar5nNdS_ZSbPsZ0p8U",
   authDomain: "futari-hidamari.firebaseapp.com",
+  databaseURL: "https://futari-hidamari-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "futari-hidamari",
   storageBucket: "futari-hidamari.firebasestorage.app",
   messagingSenderId: "859932769883",
