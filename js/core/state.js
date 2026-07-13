@@ -14,6 +14,7 @@ export const S = {
   presence: {},       // uid -> {online, last}
   match: null,        // 対戦状態機械
   dailyToday: null,   // 今日の daily ノード
+  talk: null,         // 質問トークの回答(リアルタイム購読)
   tab: "home",        // 現在のタブ
   ready: false,       // 初期データ受信済みか
 };
@@ -48,6 +49,12 @@ export function personOf(uid) {
 const subs = {};
 export function on(ev, fn) {
   (subs[ev] ||= []).push(fn);
+}
+export function off(ev, fn) {
+  const a = subs[ev];
+  if (!a) return;
+  const i = a.indexOf(fn);
+  if (i >= 0) a.splice(i, 1);
 }
 export function emit(ev, data) {
   (subs[ev] || []).forEach((f) => {

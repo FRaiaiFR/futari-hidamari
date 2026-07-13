@@ -117,6 +117,7 @@ export function handleMatchChange() {
         <div class="game-body"></div>
         <div class="game-stale hidden">あいての応答がありません…電波が悪いのかも。<br>「中止」でいつでも終われます。</div>`;
       overlay.querySelector(".gh-abort").onclick = abort;
+      overlay.addEventListener("contextmenu", (e) => e.preventDefault()); // 長押しメニュー抑止
       document.body.appendChild(overlay);
     }
     overlay.querySelector(".game-stale").classList.toggle("hidden", !isStale(m));

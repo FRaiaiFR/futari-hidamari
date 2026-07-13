@@ -16,10 +16,21 @@ import { register, handleMatchChange, cleanupDead } from "./core/match.js";
 import { logH } from "./core/history.js";
 import wordmatch from "./games/wordmatch.js";
 import coin from "./games/coin.js";
+import memory from "./games/memory.js";
+import guess from "./games/guess.js";
+import uno from "./games/uno.js";
 
 // ---- ゲームを対戦基盤に登録(新ゲームはここに1行足すだけ) ----
 register(wordmatch);
 register(coin);
+register(memory);
+register(guess);
+register(uno);
+
+// ---- スマホ誤操作ガード(ピンチズーム禁止。タップ操作には影響しない) ----
+for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {
+  document.addEventListener(ev, (e) => e.preventDefault());   // iOS Safariのピンチ
+}
 
 // ---- テーマ(夜は自動で室内灯モード)。1分ごとに再評価 ----
 applyTheme();
@@ -87,11 +98,12 @@ async function init(user) {
     refresh();
   });
   onValue(r("config"), (s) => { S.config = s.val() || {}; refresh(); });
-  onValue(r(`daily/${today}`), (s) => {
-    S.dailyToday = s.val() || {};
+  onValue(r("talk"), (s) => {
+    S.talk = s.val() || {};
     refresh();
-    grantHeartIfBoth(); // 両者そろったらハート付与(冪等)
+    emit("talk:change"); // 「あいて待ち」モーダルの自動切替に使う
   });
+  attachDaily(today);
   onValue(r("presence"), (s) => { S.presence = s.val() || {}; refresh(); });
   onValue(r("match"), (s) => {
     S.match = s.val();
@@ -107,6 +119,34 @@ async function init(user) {
 
   initPresence();
   cleanupDead(); // 放置された古い対戦を掃除
+  watchDateChange(); // 0時をまたいだら自動でお題・ボーナスを更新
+}
+
+// ---- daily/{日付} の購読(日付が変わったら張り替える) ----
+let unsubDaily = null;
+function attachDaily(date) {
+  if (unsubDaily) { try { unsubDaily(); } catch { /* noop */ } }
+  unsubDaily = onValue(r(`daily/${date}`), (s) => {
+    S.dailyToday = s.val() || {};
+    refresh();
+    grantHeartIfBoth(); // 両者そろったらハート付与(冪等)
+  });
+}
+
+// ---- 0時またぎの監視(30秒ごとに日付を確認) ----
+// アプリを開きっぱなしでも、日付が変わった瞬間に
+// きょうのお題・きょうの1問・ログインボーナス・テーマが自動で切り替わる。
+function watchDateChange() {
+  let curDay = todayStr();
+  setInterval(() => {
+    if (todayStr() === curDay) return;
+    curDay = todayStr();
+    attachDaily(curDay);   // きょうの活動フラグの購読先を新しい日へ
+    applyTheme();
+    afterBoot();           // 新しい日のログインボーナス・活動フラグ(冪等)
+    refresh();             // 画面再描画 → 「はなす」のお題が入れかわる
+    emit("talk:change");   // 開いているモーダルにも日付変更を通知
+  }, 30 * 1000);
 }
 
 // =====================================================================

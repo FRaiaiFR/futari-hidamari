@@ -53,10 +53,9 @@ export function speak(event = null) {
 
 /** きょうのおねだり対象 */
 export function todaysWish() {
-  return dailyPick(["wordmatch", "coin", "talk"], 7);
+  return dailyPick(["wordmatch", "coin", "talk", "memory", "guess", "uno"], 7);
 }
 function wantLines() {
   const w = todaysWish();
-  return w === "wordmatch" ? DIALOGUE.wantWordmatch
-    : w === "coin" ? DIALOGUE.wantCoin : DIALOGUE.wantTalk;
+  return DIALOGUE.wants[w] || DIALOGUE.wantTalk;
 }

@@ -3,7 +3,7 @@
 // お題に2人が同時に答えて、一致したらポイント。全5問。
 // =====================================================================
 import { txMatch } from "../core/match.js";
-import { S, personOf, partnerUid } from "../core/state.js";
+import { S, personOf, partnerUid, on } from "../core/state.js";
 import { esc } from "../core/ui.js";
 import { TOPICS } from "../data/masters.js";
 import { addCoins, bumpStat } from "../core/economy.js";
@@ -12,6 +12,12 @@ import { logH } from "../core/history.js";
 import { r, push } from "../core/firebase.js";
 
 const ROUNDS = 5;
+
+// ---- 入力の下書き保持 ----------------------------------------------
+// 相手の送信やDB更新で画面が再描画されても、未送信の入力が消えないよう
+// ラウンドごとにローカルへ下書きを保持する。試合が終わったら破棄。
+let drafts = {};
+on("match:idle", () => { drafts = {}; });
 
 /** ひらがな寄せの正規化(カタカナ→ひらがな、空白除去、小文字化) */
 function norm(s) {
@@ -57,10 +63,15 @@ export default {
           <button class="btn btn-primary btn-big wm-go">これでいく!</button>
         </div>`;
       const input = el.querySelector(".wm-input");
+      // 相手の送信などで再描画されても、書きかけの言葉を復元する
+      input.value = drafts[d.round] || "";
+      input.addEventListener("input", () => { drafts[d.round] = input.value; });
       input.focus();
+      try { const n = input.value.length; input.setSelectionRange(n, n); } catch { /* 非対応は無視 */ }
       const submit = () => {
         const w = input.value.trim();
         if (!w) return;
+        delete drafts[d.round]; // 送信ずみの下書きは破棄(再送信は基盤側で拒否される)
         this.submit(w);
       };
       el.querySelector(".wm-go").onclick = submit;

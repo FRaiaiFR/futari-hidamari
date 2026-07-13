@@ -32,7 +32,8 @@ export function render(el) {
           <div><b>${esc(g.name)}</b><p class="dim">${esc(g.desc)}</p></div>
         </div>
         <div class="gc-stats">
-          ${g.id === "coin"
+          ${g.statsHtml ? g.statsHtml(st)
+            : g.id === "coin"
             ? `<span>せんせき ${st.byGame?.coin?.wins || 0}勝${(st.byGame?.coin?.played || 0) - (st.byGame?.coin?.wins || 0)}敗</span>
                <span>読まれ率 ${setR ? Math.round(((st.coinSetRead || 0) / setR) * 100) : "-"}%</span>`
             : `<span>あそんだ回数 ${st.byGame?.wordmatch?.played || 0}</span>

@@ -71,6 +71,18 @@ export const DIALOGUE = {
     "きょうの質問、もうこたえた？{partner}の答え、気になるなぁ",
     "ふたりのこと、もっと知りたいな。質問にこたえてみて？",
   ],
+  wantMemory: [
+    "しんけいすいじゃくが見たい! どっちが おぼえてるかな?",
+    "カードあわせしようよ! ぼくも いっしょに おぼえる!",
+  ],
+  wantGuess: [
+    "かずあてゲームの気分! ふたりの勘、どっちがするどい?",
+    "1から100のひみつの数字…あてっこが見たいな!",
+  ],
+  wantUno: [
+    "きょうはUNOが見たい! 「ウノ!!」ってさけぶの、かっこいい",
+    "カードバトルの日! UNOでしょうぶしてみせて!",
+  ],
   // 記念日
   anniversary: [
     "きょうは とくべつな日 なんだよね！おめでとう！！",
@@ -91,6 +103,16 @@ export const DIALOGUE = {
     nakayoshi: ["ふたりの息、ぴったりだね！", "なかよしパワー、感じる〜！"],
     monoshiri: ["ものしりになった気がする！", "ふたりのこと、ぼくがいちばん知ってるかも"],
   },
+};
+
+// おねだり対象 → セリフの対応表(ゲームを増やしたらここにも1行)
+DIALOGUE.wants = {
+  wordmatch: DIALOGUE.wantWordmatch,
+  coin: DIALOGUE.wantCoin,
+  talk: DIALOGUE.wantTalk,
+  memory: DIALOGUE.wantMemory,
+  guess: DIALOGUE.wantGuess,
+  uno: DIALOGUE.wantUno,
 };
 
 // 特別進化のかたち(Lv50時の最高性格で決まる)
