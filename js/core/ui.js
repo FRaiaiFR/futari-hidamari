@@ -139,6 +139,8 @@ export function confetti(n = 36) {
 }
 
 export function vibrate(ms = 15) {
-  if (localStorage.getItem("hdm_vib") === "off") return; // 設定でオフにできる
+  // 端末バイブは「画面が揺れる」と感じる原因になるため既定で無効。
+  // どうしても使いたい人だけ localStorage("hdm_vib","on") で復活できる(既定はオフ)。
+  if (localStorage.getItem("hdm_vib") !== "on") return;
   try { navigator.vibrate?.(ms); } catch { /* 非対応端末は無視 */ }
 }
