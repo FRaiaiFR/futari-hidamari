@@ -9,6 +9,7 @@ import { esc } from "../core/ui.js";
 import { addCoins, addFood, bumpStat, recordResult } from "../core/economy.js";
 import { gainExp, addPersonality } from "../pet/pet.js";
 import { logH } from "../core/history.js";
+import { SE } from "../core/sound.js";
 import { confetti } from "../core/ui.js";
 
 // 50ペアぶんの絵柄(ハードで全部使う。ノーマルは前から25種)
@@ -179,6 +180,12 @@ export default {
       <p class="result-reward">🪙 かち+${d.mode === "hard" ? 60 : 40} / まけ+15 / ひきわけ+25ずつ<br>🍚+1ずつ / ペットに ✨+${d.mode === "hard" ? 40 : 25}</p>`;
   },
 
+  summary(m) {
+    const d = m.data;
+    const sc = {};
+    for (const uid of Object.values(d.taken || {})) sc[uid] = (sc[uid] || 0) + 1;
+    return { kind: "vs", mode: d.mode, scores: sc };
+  },
   async rewards(m, isHost) {
     const d = m.data;
     const my = scoreOf(d, S.uid), pa = scoreOf(d, partnerUid());
@@ -188,7 +195,7 @@ export default {
       await addFood(1);
       await recordResult("memory", res);
       logH("game", { gameId: "memory", mode: d.mode, score: my, result: res });
-      if (res === "win") confetti(30);
+      if (res === "win") { confetti(30); SE("win"); } SE("win");
     } else {
       await gainExp(d.mode === "hard" ? 40 : 25, "しんけいすいじゃく");
       await addPersonality("monoshiri", 2);

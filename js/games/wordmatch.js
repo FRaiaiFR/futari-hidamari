@@ -145,6 +145,12 @@ export default {
   },
 
   /** isHost=false: 自分の分 / true: ペット・共有の分(1回だけ) */
+  /** 対戦きろく用の要約(⑮) */
+  summary(m) {
+    const d = m.data;
+    return { kind: "coop", matches: d.matches || 0, rounds: (d.results || []).map((x) => ({
+      t: x.topic, w: x.words || null, hit: !!x.matched })) };
+  },
   async rewards(m, isHost) {
     const n = m.data.matches || 0;
     if (!isHost) {

@@ -13,17 +13,81 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div id="app">
     <!-- 起動中の表示。main.js が置き換える -->
     <div id="boot">
-      <div class="boot-pet">🐣</div>
-      <p>ひだまりを あたためています…</p>
+      <div class="boot-scene">
+        <div class="boot-sun"></div>
+        <div class="boot-pet">🥚</div>
+        <div class="boot-shadow"></div>
+      </div>
+      <p id="boot-msg">ひだまりを あたためています</p>
+      <div class="boot-dots"><i></i><i></i><i></i></div>
+      <div id="boot-err" class="boot-err" hidden></div>
     </div>
   </div>
+
+  <!-- 起動の見張り番(あえてモジュール外に置く: モジュール読込自体の失敗も捕まえるため) -->
+  <script>
+  (function () {
+    var boot = document.getElementById("boot");
+    var msgEl = document.getElementById("boot-msg");
+    var errEl = document.getElementById("boot-err");
+    var dead = false;
+
+    // 読み込み中メッセージのローテーション(生きている感を出す)
+    var msgs = [
+      "ひだまりを あたためています",
+      "おふとんを ほしています",
+      "まどを ふきふきしています",
+      "ペットを おこしています",
+      "きょうのお題を えらんでいます",
+      "おちゃを いれています",
+    ];
+    var mi = 0;
+    var rot = setInterval(function () {
+      if (!document.body.contains(boot)) { clearInterval(rot); return; }
+      mi = (mi + 1) % msgs.length;
+      if (!dead && msgEl) msgEl.textContent = msgs[mi];
+    }, 2200);
+
+    function showErr(text, hint) {
+      if (!document.body.contains(boot) || dead) return;
+      dead = true;
+      var pet = boot.querySelector(".boot-pet");
+      if (pet) pet.textContent = "🐣💦";
+      if (msgEl) msgEl.textContent = "うまく起動できませんでした";
+      errEl.hidden = false;
+      errEl.innerHTML =
+        "<b>" + String(text).replace(/[<>&]/g, "") + "</b>" +
+        (hint ? "<br><span>" + hint + "</span>" : "") +
+        '<br><button onclick="location.reload()" class="boot-retry">もういちど ためす</button>';
+    }
+
+    // ① JavaScriptのエラーを画面に表示(以前は無言で止まっていた)
+    addEventListener("error", function (e) {
+      var m = (e && (e.message || (e.error && e.error.message))) || "不明なエラー";
+      showErr(m, "js/config.js の設定と SETUP.md「よくあるつまずき」を確認してね");
+    });
+    addEventListener("unhandledrejection", function (e) {
+      var m = (e && e.reason && (e.reason.message || e.reason.code)) || "通信に失敗しました";
+      showErr(m, "電波の状態と、Firebaseの設定(SETUP.md)を確認してね");
+    });
+
+    // ② 15秒たっても起動しない場合のヒント(エラーすら出ないケース用)
+    setTimeout(function () {
+      if (document.body.contains(boot) && !dead) {
+        showErr("時間がかかっています…",
+          "電波を確認してから「もういちど ためす」を押してね。それでもダメなら js/config.js の databaseURL が Firebaseの表示と同じか確認(SETUP.md 6-6章)");
+      }
+    }, 15000);
+  })();
+  </script>
+
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

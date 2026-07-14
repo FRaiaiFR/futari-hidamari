@@ -681,3 +681,424 @@ html[data-theme="night"] .mc.open { background: var(--card); }
   30% { transform: scale(1); }
   80% { opacity: 1 } 100% { opacity: 0 }
 }
+
+/* =====================================================================
+   デザインv2 ブラッシュアップレイヤー
+   「ゆるくて可愛いのに完成度が高い」を目標に、既存定義を上書きで磨き込む。
+   方針: 二層シャドウで柔らかい奥行き / ハニーカラーの立体ボタン /
+         部屋を"ジオラマ"として演出(空・雲・星・ランプ・木の床)
+   ===================================================================== */
+
+/* ---- トークン強化 ------------------------------------------------------ */
+:root {
+  --shadow: 0 1px 2px rgba(92, 75, 58, .06), 0 6px 18px rgba(92, 75, 58, .10);
+  --shadow-lift: 0 2px 4px rgba(92, 75, 58, .08), 0 12px 28px rgba(92, 75, 58, .14);
+}
+html[data-theme="night"] {
+  --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 6px 18px rgba(0, 0, 0, .35);
+  --shadow-lift: 0 2px 4px rgba(0, 0, 0, .3), 0 12px 28px rgba(0, 0, 0, .45);
+}
+body {
+  background:
+    radial-gradient(120% 90% at 50% -10%, #FFF7E4 0%, var(--cream) 55%),
+    var(--cream);
+}
+html[data-theme="night"] body {
+  background:
+    radial-gradient(120% 90% at 50% -10%, #2B3350 0%, var(--cream) 60%),
+    var(--cream);
+}
+.page-title { font-size: 20px; font-weight: 900; letter-spacing: .04em; }
+h3 { letter-spacing: .03em; }
+
+/* ---- ボタン: 押したくなる立体感 ---------------------------------------- */
+.btn-primary {
+  background: linear-gradient(180deg, #F2C566 0%, var(--honey) 55%, #DFA43B 100%);
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, .55), 0 3.5px 0 var(--honey-d), 0 6px 12px rgba(201, 149, 47, .30);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .12);
+  letter-spacing: .04em;
+}
+.btn-primary:active {
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, .4), 0 1px 0 var(--honey-d), 0 2px 5px rgba(201, 149, 47, .25);
+  transform: translateY(2.5px) scale(.98);
+}
+.btn-ghost:active { background: var(--milk); }
+.act {
+  background: linear-gradient(180deg, var(--card) 0%, #FBF3E4 100%);
+  box-shadow: var(--shadow);
+  border-radius: var(--r-lg);
+}
+html[data-theme="night"] .act { background: linear-gradient(180deg, var(--card) 0%, #29314B 100%); }
+.act:active { transform: scale(.92); box-shadow: 0 2px 6px rgba(92,75,58,.12); }
+
+/* ---- カード: 高級感(上辺ハイライト+二層影) ---------------------------- */
+.card {
+  background: linear-gradient(180deg, var(--card) 0%, color-mix(in srgb, var(--card) 92%, #E9B44C 8%) 160%);
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, .6), var(--shadow);
+  border-color: color-mix(in srgb, var(--latte) 80%, transparent);
+}
+html[data-theme="night"] .card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), var(--shadow); }
+.hc-title, .g-name { letter-spacing: .03em; }
+
+/* ---- タブバー: 浮かぶ操作盤 -------------------------------------------- */
+#tabbar {
+  left: 10px; right: 10px; bottom: 8px; border-radius: 24px;
+  border: 1px solid var(--latte);
+  box-shadow: var(--shadow-lift);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.tab { position: relative; border-radius: 18px; margin: 6px 3px; transition: background .2s; }
+.tab.on { background: color-mix(in srgb, var(--honey) 16%, transparent); }
+.tab.on::after {
+  content: ""; position: absolute; bottom: 5px; width: 14px; height: 3px;
+  border-radius: 3px; background: var(--honey);
+}
+#screen { padding-bottom: calc(var(--tabbar-h) + 34px); }
+
+/* ---- 画面切替: ふわっと入場 -------------------------------------------- */
+#screen.anim-in > * { animation: rise .38s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes rise { 0% { opacity: 0; transform: translateY(14px) } 100% { opacity: 1; transform: none } }
+
+/* ---- 部屋: ジオラマ演出 ------------------------------------------------ */
+.room {
+  height: 310px;
+  background:
+    linear-gradient(180deg, #FCEBCB 0%, #F8E0B8 58%, transparent 58%),
+    repeating-linear-gradient(90deg, #E7CDA2 0 46px, #E0C395 46px 48px),
+    linear-gradient(180deg, #E9D2A8 58%, #DEC493 100%);
+  box-shadow: inset 0 -14px 24px rgba(92, 75, 58, .10), inset 0 10px 24px rgba(255, 255, 255, .35), var(--shadow);
+  border: none;
+}
+.room.night {
+  background:
+    linear-gradient(180deg, #2A3254 0%, #303A60 58%, transparent 58%),
+    repeating-linear-gradient(90deg, #262E4C 0 46px, #212944 46px 48px),
+    linear-gradient(180deg, #283052 58%, #202741 100%);
+  box-shadow: inset 0 -14px 26px rgba(0, 0, 0, .35), inset 0 10px 24px rgba(120, 140, 220, .08), var(--shadow);
+}
+/* 窓: 空のグラデーション+昼は雲、夜は星 */
+.room .win {
+  width: 82px; height: 96px; border-width: 6px; border-radius: 14px 14px 6px 6px;
+  background: linear-gradient(180deg, #A8D8F0 0%, #CFEAD9 78%, #EAF5D8 100%);
+  overflow: hidden; box-shadow: inset 0 0 10px rgba(255, 255, 255, .55), 0 4px 8px rgba(92, 75, 58, .18);
+}
+.room .win::before { /* ながれる雲 */
+  content: "☁️"; position: absolute; font-size: 15px; top: 16px; left: -22px;
+  animation: cloud 13s linear infinite; opacity: .9;
+}
+.room .win::after {
+  content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 4px;
+  background: #C9AB7E; transform: translateX(-50%);
+}
+@keyframes cloud { 0% { left: -26px } 100% { left: 92px } }
+.room.night .win {
+  background: linear-gradient(180deg, #101736 0%, #1E2A55 70%, #2A3560 100%);
+  border-color: #55486B;
+}
+.room.night .win::before { /* またたく星 */
+  content: "✦ ✧ ✦"; font-size: 9px; color: #F4E3A9; letter-spacing: 6px;
+  top: 14px; left: 8px; animation: twinkle 2.6s ease-in-out infinite;
+}
+.room.night .win::after { background: #55486B; }
+@keyframes twinkle { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+/* 夜のランプ: あたたかい灯り */
+.room .lamp { display: none; }
+.room.night .lamp {
+  display: block; position: absolute; top: 12px; right: 40px; width: 8px; height: 26px;
+}
+.room.night .lamp::before { content: "🏮"; position: absolute; font-size: 24px; top: 0; left: -8px; }
+.room.night .lamp::after {
+  content: ""; position: absolute; top: 8px; left: -46px; width: 100px; height: 100px;
+  border-radius: 50%; background: radial-gradient(circle, rgba(242, 200, 121, .35), transparent 70%);
+  animation: lampflicker 4s ease-in-out infinite;
+}
+@keyframes lampflicker { 0%,100% { opacity: .8 } 50% { opacity: 1 } }
+.room .rug {
+  background: radial-gradient(ellipse at 50% 40%, rgba(233, 180, 76, .38), rgba(233, 180, 76, .16) 70%);
+  border: none; box-shadow: inset 0 0 0 2px rgba(201, 149, 47, .22);
+}
+.bubble {
+  border: none; font-weight: 500;
+  box-shadow: 0 2px 0 rgba(92, 75, 58, .06), var(--shadow);
+  animation: bubblefloat 4s ease-in-out infinite;
+}
+@keyframes bubblefloat { 0%,100% { transform: translateX(-50%) translateY(0) } 50% { transform: translateX(-50%) translateY(-3px) } }
+.bubble.pop { animation: popin .3s ease, bubblefloat 4s ease-in-out .3s infinite; }
+
+/* ---- ペット: 生きている感(気分でモーションが変わる) -------------------- */
+.pet-svg .gaze { animation: gaze 9s ease-in-out infinite; }
+@keyframes gaze {
+  0%, 34%, 100% { transform: translateX(0) }
+  38%, 48% { transform: translateX(2.4px) }
+  52%, 60% { transform: translateX(-2px) }
+  64% { transform: translateX(0) }
+}
+.mood-happy .breathe { animation: hop 1.4s cubic-bezier(.3, 0, .2, 1) infinite; }
+@keyframes hop {
+  0%, 100% { transform: translateY(0) scaleY(1) }
+  28% { transform: translateY(0) scale(1.06, .92) }
+  55% { transform: translateY(-10px) scale(.97, 1.05) }
+  80% { transform: translateY(0) scale(1.02, .97) }
+}
+.mood-hungry .breathe { animation: droop 3.4s ease-in-out infinite; }
+@keyframes droop { 0%,100% { transform: translateY(2px) scaleY(.985) } 50% { transform: translateY(3.5px) scaleY(.97) } }
+.mood-lonely .breathe { animation: swaysad 4.4s ease-in-out infinite; }
+@keyframes swaysad { 0%,100% { transform: rotate(-1.6deg) translateY(1px) } 50% { transform: rotate(1.6deg) translateY(2px) } }
+.mood-sleeping .breathe { animation: breathe 5.2s ease-in-out infinite; }
+
+/* ---- ゲージ: つやとシマー ---------------------------------------------- */
+.bar { height: 14px; box-shadow: inset 0 1.5px 3px rgba(92, 75, 58, .14); border: none; }
+.bar i {
+  position: relative; overflow: hidden;
+  box-shadow: inset 0 -2.5px 0 rgba(0, 0, 0, .10), inset 0 1.5px 0 rgba(255, 255, 255, .45);
+}
+.bar i::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .5) 50%, transparent 70%);
+  transform: translateX(-100%); animation: shimmer 3.2s ease-in-out infinite;
+}
+@keyframes shimmer { 0%, 60% { transform: translateX(-100%) } 100% { transform: translateX(100%) } }
+
+/* ---- きょうのおせわ(初心者ガイド) -------------------------------------- */
+.todo-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.todo {
+  text-align: center; font-size: 11px; font-weight: 700; color: var(--cocoa-2);
+  background: var(--milk); border-radius: 10px; padding: 7px 2px;
+  border: 1.5px dashed var(--latte);
+}
+.todo.ok {
+  color: #4F7D49; background: rgba(143, 191, 136, .16);
+  border: 1.5px solid var(--leaf); animation: popdone .35s ease;
+}
+@keyframes popdone { 0% { transform: scale(.85) } 60% { transform: scale(1.06) } 100% { transform: scale(1) } }
+
+/* ---- ログイン(タイトル画面) ------------------------------------------- */
+.login-hero h1 { font-weight: 900; font-size: 26px; }
+.login-card { box-shadow: var(--shadow-lift); }
+.login-card:active { transform: scale(.94) rotate(-1deg); }
+.lc-emoji { animation: bob 2.6s ease-in-out infinite; }
+.login-card[data-i="1"] .lc-emoji { animation-delay: .4s; }
+
+/* ---- 新しいロード画面 --------------------------------------------------- */
+.boot-scene { position: relative; width: 120px; height: 110px; }
+.boot-sun {
+  position: absolute; inset: 0; margin: auto; width: 104px; height: 104px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(242, 197, 102, .35), rgba(242, 197, 102, .12) 60%, transparent 72%);
+  animation: sunpulse 2.6s ease-in-out infinite;
+}
+@keyframes sunpulse { 0%,100% { transform: scale(1); opacity: .8 } 50% { transform: scale(1.12); opacity: 1 } }
+.boot-pet { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 52px; animation: eggwob 1.5s ease-in-out infinite; }
+@keyframes eggwob { 0%,100% { transform: rotate(-6deg) translateY(0) } 25% { transform: rotate(0deg) translateY(-6px) } 50% { transform: rotate(6deg) translateY(0) } 75% { transform: rotate(0) translateY(-3px) } }
+.boot-shadow {
+  position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+  width: 56px; height: 10px; border-radius: 50%; background: rgba(92, 75, 58, .14);
+  animation: shadowpulse 1.5s ease-in-out infinite;
+}
+@keyframes shadowpulse { 0%,100% { transform: translateX(-50%) scaleX(1) } 50% { transform: translateX(-50%) scaleX(.8) } }
+#boot p { font-size: 14px; letter-spacing: .06em; }
+.boot-dots { display: flex; gap: 7px; }
+.boot-dots i {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--honey);
+  animation: dotjump 1.2s ease-in-out infinite;
+}
+.boot-dots i:nth-child(2) { animation-delay: .15s; }
+.boot-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dotjump { 0%, 60%, 100% { transform: translateY(0); opacity: .45 } 30% { transform: translateY(-7px); opacity: 1 } }
+.boot-err {
+  max-width: 320px; background: #FBEAE8; border: 1.5px solid #E4A69F; color: #8E463E;
+  border-radius: var(--r-md); padding: 12px 14px; font-size: 12.5px; line-height: 1.7;
+}
+html[data-theme="night"] .boot-err { background: #3A2C36; border-color: #7A4E52; color: #F0C9C4; }
+.boot-retry {
+  margin-top: 8px; background: var(--honey); color: #fff; font-weight: 700;
+  border-radius: 999px; padding: 8px 18px; font-size: 13px;
+}
+
+/* ---- トースト: 柔らかく浮く --------------------------------------------- */
+#toast { box-shadow: var(--shadow-lift); bottom: calc(var(--tabbar-h) + 26px); }
+
+/* ---- モーダル: 登場をぽよんと ------------------------------------------- */
+.m-ovl.in .m-box { animation: mpop .26s cubic-bezier(.2, .9, .3, 1.2); }
+@keyframes mpop { 0% { transform: scale(.9); opacity: .5 } 100% { transform: scale(1); opacity: 1 } }
+.todo-card { padding: 12px 16px; }
+
+/* =====================================================================
+   v3: 演出(fx) / 季節 / 天気 / 卒業生 / ショップ / ミッション / じてん
+   ===================================================================== */
+
+/* ---- ① ごはんの放物線+もぐもぐ ---------------------------------------- */
+.fx-food { position: fixed; z-index: 75; font-size: 30px; pointer-events: none; will-change: transform; }
+.munch .pet-svg .breathe { animation: munchhop 1.2s ease; }
+@keyframes munchhop {
+  0%, 100% { transform: none }
+  15% { transform: scale(1.08, .9) }
+  35% { transform: translateY(-12px) scale(.96, 1.06) }
+  55% { transform: translateY(0) scale(1.05, .93) }
+  75% { transform: translateY(-6px) }
+}
+
+/* ---- ②③ 全画面シネマ演出 ---------------------------------------------- */
+.fx-cinema {
+  position: fixed; inset: 0; z-index: 85; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px; text-align: center;
+  background: rgba(46, 36, 24, .82); opacity: 0; transition: opacity .3s;
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.fx-cinema.in { opacity: 1; }
+.fx-cinema.out { opacity: 0; }
+.fx-pet { width: 210px; filter: drop-shadow(0 0 24px rgba(242, 197, 102, .55)); animation: fxpetin .7s cubic-bezier(.2,.9,.3,1.3) both; }
+@keyframes fxpetin { 0% { transform: scale(.4); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
+.fx-title {
+  font-size: 42px; font-weight: 900; color: #FFE9B8; letter-spacing: .1em;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, .25), 0 0 30px rgba(242, 197, 102, .6);
+  animation: fxtitle .6s cubic-bezier(.2,.9,.3,1.4) .2s both;
+}
+@keyframes fxtitle { 0% { transform: scale(.3) rotate(-5deg); opacity: 0 } 100% { transform: none; opacity: 1 } }
+.fx-lv { color: #FFF7E6; font-size: 19px; font-weight: 700; line-height: 1.9; animation: rise .5s .45s both; }
+.fx-skip { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); color: rgba(255, 247, 230, .55); font-size: 12px; }
+.fx-rays {
+  position: absolute; width: 480px; height: 480px; border-radius: 50%;
+  background: conic-gradient(rgba(242,197,102,.28) 0 12deg, transparent 12deg 30deg,
+    rgba(242,197,102,.28) 30deg 42deg, transparent 42deg 60deg, rgba(242,197,102,.28) 60deg 72deg,
+    transparent 72deg 90deg, rgba(242,197,102,.28) 90deg 102deg, transparent 102deg 120deg,
+    rgba(242,197,102,.28) 120deg 132deg, transparent 132deg 150deg, rgba(242,197,102,.28) 150deg 162deg,
+    transparent 162deg 180deg, rgba(242,197,102,.28) 180deg 192deg, transparent 192deg 210deg,
+    rgba(242,197,102,.28) 210deg 222deg, transparent 222deg 240deg, rgba(242,197,102,.28) 240deg 252deg,
+    transparent 252deg 270deg, rgba(242,197,102,.28) 270deg 282deg, transparent 282deg 300deg,
+    rgba(242,197,102,.28) 300deg 312deg, transparent 312deg 330deg, rgba(242,197,102,.28) 330deg 342deg, transparent 342deg);
+  animation: spin 14s linear infinite; opacity: .8;
+}
+@keyframes spin { to { transform: rotate(360deg) } }
+.fx-stars { position: absolute; inset: 0; pointer-events: none; }
+.fx-stars i { position: absolute; font-size: 22px; animation: starfall 1.8s ease-in-out infinite; opacity: 0; font-style: normal; }
+.fx-stars i:nth-child(1) { left: 14%; top: 18%; animation-delay: 0s }
+.fx-stars i:nth-child(2) { left: 78%; top: 14%; animation-delay: .3s }
+.fx-stars i:nth-child(3) { left: 26%; top: 66%; animation-delay: .55s }
+.fx-stars i:nth-child(4) { left: 84%; top: 62%; animation-delay: .8s }
+.fx-stars i:nth-child(5) { left: 50%; top: 8%;  animation-delay: 1.05s }
+.fx-stars i:nth-child(6) { left: 8%;  top: 44%; animation-delay: 1.3s }
+@keyframes starfall { 0% { transform: translateY(-14px) scale(.4); opacity: 0 } 40% { opacity: 1 } 100% { transform: translateY(18px) scale(1); opacity: 0 } }
+/* 進化: 白い光→シルエット解除 */
+.fx-flash { position: absolute; inset: 0; background: #FFF; animation: evflash 1.5s ease both; }
+@keyframes evflash { 0% { opacity: 0 } 22% { opacity: 1 } 60% { opacity: .0 } 100% { opacity: 0 } }
+.fx-silhouette .pet-svg { animation: unsilhouette 2.2s ease both; }
+@keyframes unsilhouette {
+  0%, 42% { filter: brightness(0) saturate(0) }
+  70% { filter: brightness(1.6) saturate(1.2) drop-shadow(0 0 22px #FFE9B8) }
+  100% { filter: none }
+}
+.fx-evolve { background: rgba(58, 46, 28, .9); }
+
+/* ---- ④ 天気(窓の中だけ) ----------------------------------------------- */
+.wfx { position: absolute; inset: 0; pointer-events: none; font-style: normal; overflow: hidden; }
+.wfx.rain {
+  background: repeating-linear-gradient(105deg, transparent 0 9px, rgba(140, 180, 220, .55) 9px 10.5px);
+  animation: rainmove .55s linear infinite;
+}
+@keyframes rainmove { to { background-position: 22px 40px } }
+.win.w-rain { filter: saturate(.8) brightness(.94); }
+.win.w-cloud { filter: saturate(.7); }
+.wfx.snowf::before, .wfx.snowf::after {
+  content: "❄ ❅ ❄"; position: absolute; left: 4px; font-size: 9px; color: #fff;
+  letter-spacing: 8px; animation: snowfall 3.4s linear infinite;
+}
+.wfx.snowf::after { left: 18px; animation-delay: 1.7s; font-size: 7px; }
+@keyframes snowfall { 0% { top: -12px; opacity: 0 } 15% { opacity: 1 } 100% { top: 92px; opacity: .5 } }
+
+/* ---- ⑤ 季節の舞いもの --------------------------------------------------- */
+.season-fx { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.season-fx i { position: absolute; top: -20px; font-size: 15px; font-style: normal; animation: petal 7s linear infinite; opacity: .85; }
+.season-spring .season-fx i::before { content: "🌸"; }
+.season-autumn .season-fx i::before { content: "🍁"; }
+.season-winter .season-fx i::before { content: "❄️"; font-size: 12px; }
+.season-fx i:nth-child(1) { left: 8%;  animation-delay: 0s }
+.season-fx i:nth-child(2) { left: 26%; animation-delay: 2.3s }
+.season-fx i:nth-child(3) { left: 44%; animation-delay: 4.6s; font-size: 12px }
+.season-fx i:nth-child(4) { left: 62%; animation-delay: 1.2s }
+.season-fx i:nth-child(5) { left: 78%; animation-delay: 3.5s; font-size: 12px }
+.season-fx i:nth-child(6) { left: 90%; animation-delay: 5.8s }
+@keyframes petal {
+  0% { transform: translate(0, 0) rotate(0); opacity: 0 }
+  8% { opacity: .9 }
+  100% { transform: translate(-34px, 310px) rotate(300deg); opacity: 0 }
+}
+.season-winter.room:not(.night) { filter: none; }
+.season-winter .rug { box-shadow: inset 0 0 0 2px rgba(180, 205, 230, .35); }
+
+/* ---- ⑥ くすぐり ---------------------------------------------------------- */
+.pet-hit.tickle .pet-svg { animation: tickle .8s ease; }
+@keyframes tickle {
+  0%, 100% { transform: rotate(0) }
+  15% { transform: rotate(-7deg) scale(1.04, .96) }
+  30% { transform: rotate(7deg) }
+  45% { transform: rotate(-6deg) scale(.98, 1.03) }
+  60% { transform: rotate(6deg) }
+  80% { transform: rotate(-3deg) }
+}
+
+/* ---- 家具(⑨) ------------------------------------------------------------ */
+.furn { position: absolute; z-index: 1; filter: drop-shadow(0 3px 3px rgba(92, 75, 58, .22)); font-style: normal; }
+.furn-poster { background: rgba(255, 253, 248, .8); border: 3px solid #C9AB7E; border-radius: 6px; padding: 2px 5px; }
+html[data-theme="night"] .furn-poster { background: rgba(60, 70, 110, .8); border-color: #55486B; }
+.win .furn { top: 0; left: 2px; font-size: 16px; z-index: 2; }
+
+/* ---- 卒業生の徘徊(過去ペット) ------------------------------------------- */
+.walker { position: absolute; bottom: 30px; width: 84px; z-index: 1; opacity: .96; }
+.walker .pet-svg .breathe { animation: breathe 4s ease-in-out infinite; }
+.walker-z { position: absolute; top: -4px; right: -2px; font-size: 13px; opacity: 0; }
+/* 各自ちがう周期で: 歩く→すわる→ねる→もどる をCSSだけでループ */
+.walker-0 { animation: stroll0 34s ease-in-out infinite; }
+.walker-1 { animation: stroll1 42s ease-in-out infinite; bottom: 26px; }
+.walker-2 { animation: stroll0 51s ease-in-out infinite reverse; bottom: 34px; }
+.walker-3 { animation: stroll1 47s ease-in-out infinite reverse; bottom: 24px; }
+.walker-1 .walker-z, .walker-3 .walker-z { animation: walkerzzz 42s ease-in-out infinite; }
+.walker-0 .walker-z { animation: walkerzzz 34s ease-in-out infinite; }
+.walker-2 .walker-z { animation: walkerzzz 51s ease-in-out infinite; }
+@keyframes stroll0 {
+  0%   { left: -12%; transform: scaleX(1) }
+  22%  { left: 30%;  transform: scaleX(1) }
+  30%  { left: 30%;  transform: scaleX(1) translateY(2px) }   /* すわる */
+  48%  { left: 30%;  transform: scaleX(1) translateY(2px) }   /* ねる(zzz) */
+  56%  { left: 30%;  transform: scaleX(-1) }
+  82%  { left: 74%;  transform: scaleX(-1) }
+  90%  { left: 74%;  transform: scaleX(1) }
+  100% { left: 108%; transform: scaleX(1) }
+}
+@keyframes stroll1 {
+  0%   { left: 108%; transform: scaleX(-1) }
+  26%  { left: 58%;  transform: scaleX(-1) }
+  36%  { left: 58%;  transform: scaleX(-1) translateY(2px) }
+  58%  { left: 58%;  transform: scaleX(-1) translateY(2px) }
+  66%  { left: 58%;  transform: scaleX(1) }
+  100% { left: -14%; transform: scaleX(1) }
+}
+@keyframes walkerzzz {
+  0%, 29% { opacity: 0 }
+  34%, 52% { opacity: 1; transform: translateY(-4px) }
+  57%, 100% { opacity: 0 }
+}
+
+/* ---- ペットいちらん ------------------------------------------------------ */
+.pl-list { display: flex; flex-direction: column; gap: 8px; }
+.pl-item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--milk); border: 1.5px solid var(--latte); border-radius: var(--r-md);
+  padding: 8px 12px;
+}
+.pl-item.now { border-color: var(--honey); background: rgba(233, 180, 76, .12); }
+.pl-svg { width: 62px; flex: none; }
+.pl-txt { flex: 1; font-size: 13px; line-height: 1.5; }
+.pl-fav { font-size: 20px; opacity: .5; }
+.pl-fav.on { opacity: 1; }
+
+/* ---- きろく: 追加タブたち ------------------------------------------------ */
+.chips-scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.chips-scroll::-webkit-scrollbar { display: none; }
+.chips-scroll .lv-chip { flex: none; }
+.mis-bar { margin: 5px 0 3px; height: 9px; }
+.dex-words { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.month-card { width: min(320px, 82vw); border-radius: 18px; box-shadow: var(--shadow-lift); }
+.anniv-banner.bday { background: linear-gradient(90deg, #F9E2B8, #CFE7F6); }
+.g-side { display: flex; align-items: center; gap: 8px; }
+.fx-title-evo { font-size: 34px; color: #FFF3D6; }

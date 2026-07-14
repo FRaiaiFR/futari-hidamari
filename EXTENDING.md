@@ -95,11 +95,18 @@ register(janken);
   `FURNITURE` マスター+`pet/room` ノードで管理
 - 見た目は `screens/home.js` の `.room` 内に差し込む
 
-## 9. AIセリフ(Gemini等)を足す方針
+## 9. AIセリフを有効にする(実装ずみ・スイッチを入れるだけ)
 
-`js/pet/dialogue.js` の `speak()` がセリフの唯一の出口なので、ここだけ差し替えれば全画面に効きます。
-**注意:** APIキーをフロントに直書きしないこと。無料のCloudflare Workersを
-プロキシにして、Workers側にキーを置く構成にしてください(kakeiboで検討した方式と同じ)。
+アプリ側の実装は完了しています。`workers/gemini-proxy.js` をCloudflare Workersに
+置いて、URLを `js/config.js` の `APP.ai.workerUrl` に貼るだけで動きます。
+
+手順(約10分・無料):
+1. https://dash.cloudflare.com で無料アカウント作成 → Workers & Pages → Create Worker
+2. エディタに `workers/gemini-proxy.js` の中身を貼って Deploy
+3. Worker の Settings → Variables → 「GEMINI_API_KEY」を追加(Google AI StudioでAPIキー取得)
+4. 発行された `https://〇〇.workers.dev` を `js/config.js` の `ai.workerUrl` に貼る
+
+APIエラー・未設定・3.5秒以上の遅延時は、自動で既存セリフにフォールバックします(アプリは止まりません)。
 
 ## 10. 季節イベントの足し方(例)
 

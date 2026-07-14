@@ -10,6 +10,7 @@ import { esc, modal, confetti } from "../core/ui.js";
 import { addCoins, addFood, recordResult } from "../core/economy.js";
 import { gainExp, addPersonality } from "../pet/pet.js";
 import { logH } from "../core/history.js";
+import { SE } from "../core/sound.js";
 
 const COLORS = ["R", "G", "B", "Y"];
 const COLOR_JP = { R: "あか", G: "みどり", B: "あお", Y: "きいろ" };
@@ -262,6 +263,12 @@ export default {
       <p class="result-reward">🪙 かち+50 / まけ+20 / 🍚+1ずつ / ペットに ✨+30</p>`;
   },
 
+  summary(m) {
+    const d = m.data;
+    const loserSeat = d.winner === "a" ? "b" : "a";
+    return { kind: "vs", winner: m.players[d.winner],
+      loserCards: (d.hands?.[loserSeat] || []).length, turns: (d.disc || []).length };
+  },
   async rewards(m, isHost) {
     const win = m.players[m.data.winner] === S.uid;
     if (!isHost) {
@@ -269,7 +276,7 @@ export default {
       await addFood(1);
       await recordResult("uno", win ? "win" : "lose");
       logH("game", { gameId: "uno", result: win ? "win" : "lose" });
-      if (win) confetti(36);
+      if (win) { confetti(36); SE("win"); } SE("win");
     } else {
       await gainExp(30, "UNO");
       await addPersonality("yuukan", 2);

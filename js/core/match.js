@@ -8,6 +8,8 @@ import { tx, r, set } from "./firebase.js";
 import { S, emit, personOf, partnerUid } from "./state.js";
 import { toast, modal, esc, confirmDlg } from "./ui.js";
 import { logH } from "./history.js";
+import { bumpMission } from "./missions.js";
+import { push } from "./firebase.js";
 import { checkAll } from "./achievements.js";
 
 export const MATCH_GAMES = {};
@@ -155,6 +157,7 @@ async function claimRewards(m, mod) {
   });
   if (mine.committed) {
     try { await mod.rewards(m, false); } catch (e) { console.error(e); }
+    bumpMission("game");                        // ⑬ 週間ミッション: 対決回数
   }
   // ペット・共有分(ホストのクライアントが1回だけ)
   if (isHost) {
@@ -165,6 +168,13 @@ async function claimRewards(m, mod) {
     });
     if (petClaim.committed) {
       try { await mod.rewards(m, true); } catch (e) { console.error(e); }
+      // ⑮ 対戦のきろく(ベストバウト): ホストが1回だけ保存
+      try {
+        await push(r("matchLog"), {
+          ts: Date.now(), gameId: m.gameId, players: m.players,
+          detail: mod.summary ? mod.summary(m) : null,
+        });
+      } catch (e) { console.error("matchLog", e); }
     }
   }
   checkAll();

@@ -14,6 +14,13 @@ import { addHearts, addFood, addCoins, bumpStat, boostToday } from "./core/econo
 import { checkAll } from "./core/achievements.js";
 import { register, handleMatchChange, cleanupDead } from "./core/match.js";
 import { logH } from "./core/history.js";
+import { levelUpFx, evolveFx, graduateFx } from "./core/fx.js";
+import { initSound, SE } from "./core/sound.js";
+import { fetchWeather } from "./core/weather.js";
+import { bumpMission } from "./core/missions.js";
+import { scheduleBackup, saveNow, loadBackup, enterOfflineMode } from "./core/backup.js";
+import { stageForLevel, STAGE_NAMES } from "./pet/pet.js";
+import { on } from "./core/state.js";
 import wordmatch from "./games/wordmatch.js";
 import coin from "./games/coin.js";
 import memory from "./games/memory.js";
@@ -31,6 +38,20 @@ register(uno);
 for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {
   document.addEventListener(ev, (e) => e.preventDefault());   // iOS Safariのピンチ
 }
+
+// ---- サウンド(⑦): 初回タップで起動(ブラウザの自動再生制限のため) ----
+addEventListener("pointerdown", () => initSound(), { once: true });
+document.addEventListener("click", (e) => {
+  if (e.target.closest(".btn, .act, .tab, .mc, .u-card.ok, .login-card")) SE("tap");
+});
+
+// ---- 演出(②③・卒業)の購読: どの画面にいても発火する ----
+on("pet:levelup", (lv) => levelUpFx(lv, S.pet));
+on("pet:evolve", ({ level }) => {
+  const stage = stageForLevel(level);
+  evolveFx(STAGE_NAMES[stage] || "あたらしいすがた", { ...S.pet, level });
+});
+on("pet:graduate", ({ name, gen }) => graduateFx(name, gen));
 
 // ---- テーマ(夜は自動で室内灯モード)。1分ごとに再評価 ----
 applyTheme();
@@ -57,6 +78,27 @@ onAuthStateChanged(auth, (user) => {
 // =====================================================================
 async function init(user) {
   S.uid = user.uid;
+
+  // ---- オフライン閲覧(⑳): 電波がない場合は保存データで「見るだけ」起動 ----
+  {
+    const snap = loadBackup();
+    if (!navigator.onLine && snap) {
+      enterOfflineMode(snap);
+      initRouter(root);
+      toast("オフライン中: 見るだけモードだよ(操作は保存されません)", "📡");
+      return;
+    }
+    // 電波はあるがFirebaseに8秒つながらない場合も見るだけで起動(見張り番より先に)
+    if (snap) {
+      setTimeout(() => {
+        if (!S.ready && !S.offline) {
+          enterOfflineMode(snap);
+          initRouter(root);
+          toast("接続できないため 見るだけモードで開いたよ", "📡");
+        }
+      }, 8000);
+    }
+  }
 
   // profileKey をメールアドレスから確定(ログイン画面の選択に依存しない)
   const email = (user.email || "").toLowerCase();
@@ -85,12 +127,12 @@ async function init(user) {
   onValue(r("users"), (s) => {
     S.users = s.val() || {};
     gotUsers = true; readyCheck();
-    refresh(); emit("users:change");
+    refresh(); emit("users:change"); scheduleBackup();
   });
   onValue(r("pet"), (s) => {
     S.pet = s.val();
     gotPet = true; readyCheck();
-    refresh(); emit("pet:change");
+    refresh(); emit("pet:change"); scheduleBackup();
   });
   onValue(r("shared"), (s) => {
     S.shared = s.val() || {};
@@ -104,6 +146,7 @@ async function init(user) {
     emit("talk:change"); // 「あいて待ち」モーダルの自動切替に使う
   });
   attachDaily(today);
+  onValue(r("petAlumni"), (s) => { S.alumni = s.val() || {}; refresh(); });
   onValue(r("presence"), (s) => { S.presence = s.val() || {}; refresh(); });
   onValue(r("match"), (s) => {
     S.match = s.val();
@@ -190,6 +233,41 @@ async function afterBoot() {
 
   grantHeartIfBoth();
   checkAll();
+
+  // ---- 週間ミッション(⑬): ログイン日数(1日1回) ----
+  if (res.committed) bumpMission("login");
+
+  // ---- 誕生日イベント(⑫): 年1回のプレゼント ----
+  await birthdayEvent();
+
+  // ---- 天気(④)を裏で取得(ホームの窓が使う) ----
+  fetchWeather().then(() => refresh());
+
+  // ---- バックアップ(㉑): 画面を閉じる直前にも保存 ----
+  addEventListener("pagehide", saveNow);
+}
+
+// 誕生日: config/birthdays/{p1,p2} が今日なら お祝い+プレゼント(年1回)
+async function birthdayEvent() {
+  const bdays = S.config?.birthdays || {};
+  const mmdd = todayStr().slice(5);
+  const meKey = S.meKey;
+  for (const [key, d] of Object.entries(bdays)) {
+    if (!d || d.slice(5) !== mmdd) continue;
+    const who = PARTNERS.find((p) => p.key === key);
+    // お祝いは毎回、プレゼントは「自分の誕生日×年1回」だけ
+    if (key === meKey) {
+      const year = todayStr().slice(0, 4);
+      const g = await tx(`users/${S.uid}/gifts/bday_${year}`, (v) => (v ? false : Date.now()));
+      if (g.committed) {
+        await addCoins(100); await addHearts(3); await addFood(3);
+        logH("birthday", { year });
+      }
+    }
+    toast(`🎂 きょうは${who?.name || "だれか"}のたんじょうび! おめでとう!!`, "🎉");
+    import("./core/ui.js").then((m) => m.confetti(50));
+    break;
+  }
 }
 
 // ---- 2人が同じ日にあそんだら 💗+1(トランザクションで1回だけ) ----

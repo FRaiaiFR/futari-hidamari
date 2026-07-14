@@ -9,6 +9,7 @@ import { esc, confetti } from "../core/ui.js";
 import { addCoins, addFood, recordResult } from "../core/economy.js";
 import { gainExp, addPersonality } from "../pet/pet.js";
 import { logH } from "../core/history.js";
+import { SE } from "../core/sound.js";
 
 const TRIES = 3;
 const other = (m, uid) => (m.players.a === uid ? m.players.b : m.players.a);
@@ -121,6 +122,11 @@ export default {
       <p class="result-reward">🪙 かち+40 / まけ+15 / ひきわけ+20ずつ<br>🍚+1ずつ / ペットに ✨+20</p>`;
   },
 
+  summary(m) {
+    const d = m.data;
+    return { kind: "vs", answer: d.answer, winner: d.winner || null,
+      log: (d.log || []).map((g) => ({ uid: g.uid, n: g.n, hit: !!g.hit })) };
+  },
   async rewards(m, isHost) {
     const d = m.data;
     const res = d.winner == null ? "draw" : d.winner === S.uid ? "win" : "lose";
@@ -129,7 +135,7 @@ export default {
       await addFood(1);
       await recordResult("guess", res);
       logH("game", { gameId: "guess", answer: d.answer, result: res });
-      if (res === "win") confetti(30);
+      if (res === "win") { confetti(30); SE("win"); } SE("win");
     } else {
       await gainExp(20, "かずあて");
       await addPersonality("yuukan", 2);

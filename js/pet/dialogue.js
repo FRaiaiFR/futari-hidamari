@@ -4,6 +4,7 @@
 // 将来 AI(Gemini) に差し替える場合も speak() の中身だけ変えればよい。
 // =====================================================================
 import { S, me, partner, partnerUid } from "../core/state.js";
+import { APP } from "../config.js";
 import { rand, hourNow, isSleepTime, dailyPick, todayStr } from "../core/ui.js";
 import { DIALOGUE } from "../data/dialogues.js";
 import { effHunger, moodOf, topAxis } from "./pet.js";
@@ -58,4 +59,37 @@ export function todaysWish() {
 function wantLines() {
   const w = todaysWish();
   return DIALOGUE.wants[w] || DIALOGUE.wantTalk;
+}
+
+
+// =====================================================================
+// AIセリフ(㉒): Cloudflare Workers経由でGeminiに1文だけ作らせる。
+// 未設定・エラー・遅延時はぜんぶ既存セリフのまま(フォールバック)。
+// =====================================================================
+export async function aiLine(situation = "idle") {
+  const url = APP.ai?.workerUrl;
+  if (!url) return null;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3500);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        situation,                       // idle/morning/night/rain/birthday/levelup/evolve/full/hungry/aftergame/longtime
+        pet: {
+          name: S.pet?.name, level: S.pet?.level,
+          form: S.pet?.form, mood: moodOf(), topAxis: topAxis(),
+        },
+        names: { you: me()?.name, partner: partner()?.name },
+      }),
+    });
+    clearTimeout(timer);
+    const j = await res.json();
+    const t = String(j?.text || "").trim().slice(0, 60);
+    return t || null;
+  } catch {
+    return null;  // 失敗 → 既存セリフへフォールバック
+  }
 }

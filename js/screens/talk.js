@@ -11,6 +11,7 @@ import { r, set } from "../core/firebase.js";
 import { addFood, bumpStat } from "../core/economy.js";
 import { gainExp, addPersonality } from "../pet/pet.js";
 import { logH } from "../core/history.js";
+import { bumpMission } from "../core/missions.js";
 import { checkAll } from "../core/achievements.js";
 import { refresh } from "../core/router.js";
 
@@ -201,6 +202,7 @@ function openForm(q, theirs) {
           await gainExp(10, "おしゃべり");
           await addPersonality("monoshiri", 2);
           await bumpStat("talkCount");
+    bumpMission("talk");
           logH("talk", { qid: q.id });
           toast("こたえた! 🍚+1", "💬");
           checkAll();

@@ -91,6 +91,17 @@ export const ACHIEVEMENTS = [
     cond: (c) => st(c.u, "buyCount") >= 1, reward: { coins: 30 } },
   { id: "hearts_10", name: "ハートあつめ", icon: "💗", desc: "ハートのかけらを合計10こ集めた",
     cond: (c) => (c.shared?.heartsTotal || 0) >= 10, reward: { coins: 100 } },
+
+  // ---- ふたりで解除する協力実績(⑭)。条件は2人共通なので同時に解除される ----
+  { id: "pair_100days", pair: true, name: "いっしょに100日", icon: "🗓️", desc: "2人そろった日が合計100日",
+    cond: (c) => (c.shared?.heartsTotal || 0) >= 100, reward: { coins: 300, hearts: 10 } },
+  { id: "pair_coop50", pair: true, name: "協力プレイ50回", icon: "🤝", desc: "2人の対決あそび回数が合計50回",
+    cond: (c) => Object.values(c.users || {}).reduce((n, u) =>
+      n + Object.values(u?.stats?.byGame || {}).reduce((m, g) => m + (g.played || 0), 0), 0) >= 50,
+    reward: { coins: 250 } },
+  { id: "pair_words100", pair: true, name: "ことばの交換100", icon: "📖", desc: "いしんでんしんの回答交換が合計100回",
+    cond: (c) => Object.values(c.users || {}).reduce((n, u) => n + (u?.stats?.wordMatchTotal || 0), 0) >= 100,
+    reward: { coins: 300, hearts: 5 } },
 ];
 
 // ---- ごほうび券(現実のごほうびと交換できる券) ---------------------------

@@ -1,16 +1,25 @@
 // =====================================================================
-// タブルーター
+// タブルーター(Lazy Load対応)
+// 画面モジュールは初めて開くときに読み込む(⑲初回起動の高速化)。
 // 画面モジュールは render(el) を実装するだけ。データ更新時は refresh() が
 // 現在の画面だけを描き直す(入力はすべてモーダル内なので消えない)。
 // =====================================================================
 import { S } from "./state.js";
-import * as home from "../screens/home.js";
-import * as play from "../screens/play.js";
-import * as talk from "../screens/talk.js";
-import * as records from "../screens/records.js";
-import * as other from "../screens/other.js";
 
-const SCREENS = { home, play, talk, records, other };
+// 遅延読み込みテーブル(ホームだけは起動直後に必要なので先読みする)
+const LOADERS = {
+  home: () => import("../screens/home.js"),
+  play: () => import("../screens/play.js"),
+  talk: () => import("../screens/talk.js"),
+  records: () => import("../screens/records.js"),
+  other: () => import("../screens/other.js"),
+};
+const LOADED = {};
+async function load(id) {
+  if (!LOADED[id]) LOADED[id] = await LOADERS[id]();
+  return LOADED[id];
+}
+
 const TABS = [
   { id: "home", icon: "🏠", label: "ホーム" },
   { id: "play", icon: "🎮", label: "あそぶ" },
@@ -35,21 +44,30 @@ export function initRouter(root) {
     const b = e.target.closest(".tab");
     if (b) show(b.dataset.id);
   });
-  show("home");
+  // 裏でよく使う画面を先読み(体感速度を上げつつ初回表示は妨げない)
+  show("home").then(() => { load("play"); load("talk"); });
 }
 
-export function show(id) {
-  if (!SCREENS[id]) return;
+export async function show(id) {
+  if (!LOADERS[id]) return;
   S.tab = id;
   document.querySelectorAll("#tabbar .tab").forEach((b) =>
     b.classList.toggle("on", b.dataset.id === id));
+  const mod = await load(id);
+  if (S.tab !== id) return;           // 読み込み中に別タブへ移動した場合
   screenEl.scrollTop = 0;
-  SCREENS[id].render(screenEl);
+  mod.render(screenEl);
+  // タブ切替時だけ、ふわっと入場(データ更新のrefreshでは動かさない)
+  screenEl.classList.remove("anim-in");
+  void screenEl.offsetWidth;
+  screenEl.classList.add("anim-in");
 }
 
 let t = null;
 /** データ更新時の再描画(200msデバウンス) */
 export function refresh() {
   clearTimeout(t);
-  t = setTimeout(() => { if (screenEl && S.ready) SCREENS[S.tab]?.render(screenEl); }, 200);
+  t = setTimeout(() => {
+    if (screenEl && S.ready && LOADED[S.tab]) LOADED[S.tab].render(screenEl);
+  }, 200);
 }

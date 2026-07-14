@@ -10,6 +10,7 @@ import { todayStr, isSleepTime, toast, confetti, vibrate } from "../core/ui.js";
 import { boostToday, bumpStat } from "../core/economy.js";
 import { logH, petLog } from "../core/history.js";
 import { checkAll } from "../core/achievements.js";
+import { bumpMission } from "../core/missions.js";
 import { FORMS } from "../data/dialogues.js";
 
 export const PETS_PER_DAY = 20;      // 1人1日のなでなで有効回数
@@ -82,14 +83,17 @@ export async function ensurePet() {
  * 経験値を与える(記念日ブースト込み)。
  * レベルアップ・特別進化の判定と演出もここで行う。
  */
+export const MAX_LEVEL = 100;   // ここで卒業 → 次の世代のたまごが来る
+
 export async function gainExp(n, reason = "") {
   const amount = Math.round(n * boostToday());
   let leveledTo = 0;
   let newForm = null;
+  let hit100 = false;
   const res = await tx("pet", (p) => {
-    if (!p) return false;
+    if (!p || p.grad) return false;                 // 卒業処理中は加算しない
     p.exp = (p.exp || 0) + amount;
-    while (p.exp >= expNeed(p.level)) {
+    while (p.exp >= expNeed(p.level) && p.level < MAX_LEVEL) {
       p.exp -= expNeed(p.level);
       p.level += 1;
       leveledTo = p.level;
@@ -99,22 +103,64 @@ export async function gainExp(n, reason = "") {
         newForm = p.form;
       }
     }
+    if (p.level >= MAX_LEVEL) { p.level = MAX_LEVEL; p.exp = 0; hit100 = true; }
     return p;
   });
   if (!res.committed) return;
   if (leveledTo) {
     const name = S.pet?.name || APP.defaultPetName;
     toast(`${name}が Lv${leveledTo} になった！`, "🎉");
-    confetti(30);
     vibrate(30);
     petLog(`Lv${leveledTo}になった！${reason ? `(${reason})` : ""}`, "⬆️");
     if (leveledTo === 2) petLog("たまごから かえった！", "🐣");
     if (leveledTo === 10) petLog("キッズに進化した！", "🌟");
     if (leveledTo === 25) petLog("アダルトに進化した！", "🌟");
     if (newForm) petLog(`とくべつ進化！「${FORMS[newForm].name}」になった！`, FORMS[newForm].icon);
-    emit("pet:levelup", leveledTo);
+    // 進化(2/10/25/50)は専用演出、それ以外はレベルアップ演出(main.jsが受ける)
+    if ([2, 10, 25, 50].includes(leveledTo)) {
+      emit("pet:evolve", { level: leveledTo, form: newForm });
+    } else {
+      emit("pet:levelup", leveledTo);
+    }
     checkAll();
   }
+  if (hit100) graduate();   // 100到達 → 卒業と次世代のたまご
+}
+
+/**
+ * 卒業処理(世代交代)。どちらの端末が実行しても1回だけになるよう
+ * pet.grad フラグのトランザクションで勝者を決め、卒業生の保存先は
+ * 世代番号キー(petAlumni/gen{n})にして重複保存も防ぐ。
+ * 既存データは pets ノードを作らず petAlumni に「追加」するだけなので欠損しない。
+ */
+async function graduate() {
+  // 勝者決定(grad=true にできた側だけが後続を実行)
+  const win = await tx("pet", (p) => {
+    if (!p || p.level < MAX_LEVEL || p.grad) return false;
+    p.grad = true;
+    return p;
+  });
+  if (!win.committed) return;
+  const old = win.snapshot.val();
+  const gen = old.gen || 1;
+  // 卒業生として保存(キー=世代番号なので二重実行でも1件)
+  await set(r(`petAlumni/gen${gen}`), {
+    name: old.name, form: old.form || topAxis(old.personality),
+    personality: old.personality || {}, bornAt: old.bornAt || Date.now(),
+    graduatedAt: Date.now(), gen, level: MAX_LEVEL,
+  });
+  await petLog(`${old.name}が Lv100 で卒業! へやで のんびりくらすことに`, "🎓");
+  // 次の世代のたまご(名前は設定でいつでも変更可)
+  await set(r("pet"), {
+    name: `${APP.defaultPetName}${gen + 1}ごう`,
+    level: 1, exp: 0, hunger: 80, hungerTs: Date.now(),
+    personality: { amae: 0, yuukan: 0, nakayoshi: 0, monoshiri: 0 },
+    equipped: {}, form: null, gen: gen + 1,
+    petsToday: { date: todayStr() }, lastCareDate: todayStr(), bornAt: Date.now(),
+  });
+  await petLog(`第${gen + 1}世代のたまごが ひだまりにやってきた`, "🥚");
+  emit("pet:graduate", { name: old.name, gen: gen + 1 });
+  checkAll();
 }
 
 /** 性格の軸を伸ばす */
@@ -143,6 +189,7 @@ export async function feed() {
   });
   vibrate();
   await bumpStat("feedCount");
+  bumpMission("feed");
   await gainExp(8, "ごはん");
   await addPersonality("amae", 1);
   logH("feed");
@@ -170,6 +217,7 @@ export async function petPet() {
   vibrate(8);
   if (!capped) {
     await bumpStat("petCount");
+    bumpMission("pet");
     await addPersonality("amae", 1);
     await gainExp(2, "なでなで");
     logH("pet");

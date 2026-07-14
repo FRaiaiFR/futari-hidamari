@@ -107,9 +107,10 @@ function face(expr, a) {
   return eyes + mouth + cheeks;
 }
 function normalEyes(l, r, y, ink) {
+  // blink=まばたき(縦つぶれ) / gaze=ときどき視線が泳ぐ(横ゆれ) を別グループで合成
   return `
-    <g class="blink"><circle cx="${l}" cy="${y}" r="6" fill="${ink}"/><circle cx="${l + 2}" cy="${y - 2}" r="2" fill="#fff"/></g>
-    <g class="blink"><circle cx="${r}" cy="${y}" r="6" fill="${ink}"/><circle cx="${r + 2}" cy="${y - 2}" r="2" fill="#fff"/></g>`;
+    <g class="gaze"><g class="blink"><circle cx="${l}" cy="${y}" r="6" fill="${ink}"/><circle cx="${l + 2}" cy="${y - 2}" r="2" fill="#fff"/></g></g>
+    <g class="gaze"><g class="blink"><circle cx="${r}" cy="${y}" r="6" fill="${ink}"/><circle cx="${r + 2}" cy="${y - 2}" r="2" fill="#fff"/></g></g>`;
 }
 
 // ---- きせかえ(アクセサリーのSVG定義) ------------------------------------

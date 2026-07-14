@@ -5,8 +5,15 @@ import { S, me, personOf } from "../core/state.js";
 import { esc, toast, modal, confirmDlg, applyTheme, fmtDateJP } from "../core/ui.js";
 import { TITLES } from "../data/masters.js";
 import { renamePet } from "../pet/pet.js";
-import { r, set, update, signOut, auth } from "../core/firebase.js";
+import { r, set, update, tx, signOut, auth } from "../core/firebase.js";
 import { APP } from "../config.js";
+import { seOn, bgmOn, applySoundSettings, SE } from "../core/sound.js";
+import { FURNITURE, FURN_SLOTS } from "../data/furniture.js";
+import { pay, bumpStat } from "../core/economy.js";
+import { logH } from "../core/history.js";
+import { exportBackup } from "../core/backup.js";
+import { openPetList } from "./home.js";
+import { checkAll } from "../core/achievements.js";
 
 export function render(el) {
   const u = me();
@@ -32,9 +39,9 @@ export function render(el) {
     </section>
 
     <section class="card shop-card">
-      <div class="shop-head">🛍️ ショップ <span class="chip">じゅんびちゅう</span></div>
-      <p class="dim">あたらしいスキンや家具は、これからのアップデートでとどくよ。<br>
-      (きせかえの購入はホームの「きせかえ」からできます)</p>
+      <div class="shop-head">🛍️ かぐショップ</div>
+      <p class="dim small">買ったかぐは2人共有。へやに かざって もようがえしよう(きせかえはホームの🎀から)</p>
+      <div id="furn-shop"></div>
     </section>
 
     <section class="card">
@@ -54,6 +61,32 @@ export function render(el) {
           <option value="night" ${themePref === "night" ? "selected" : ""}>いつも夜</option>
           <option value="day" ${themePref === "day" ? "selected" : ""}>いつも昼</option>
         </select>
+      </div>
+      <div class="set-row">
+        <span>🎵 BGM</span>
+        <select id="sel-bgm" class="sel">
+          <option value="on" ${bgmOn() ? "selected" : ""}>オン</option>
+          <option value="off" ${!bgmOn() ? "selected" : ""}>オフ</option>
+        </select>
+      </div>
+      <div class="set-row">
+        <span>🔊 こうかおん</span>
+        <select id="sel-se" class="sel">
+          <option value="on" ${seOn() ? "selected" : ""}>オン</option>
+          <option value="off" ${!seOn() ? "selected" : ""}>オフ</option>
+        </select>
+      </div>
+      <div class="set-row">
+        <span>🎂 ${esc(meDef.name)}の誕生日</span>
+        <button class="btn btn-ghost btn-sm" id="btn-bday">${esc(S.config?.birthdays?.[S.meKey || u.profileKey] || "みせってい")}</button>
+      </div>
+      <div class="set-row">
+        <span>🐾 ペットいちらん</span>
+        <button class="btn btn-ghost btn-sm" id="btn-petlist">ひらく</button>
+      </div>
+      <div class="set-row">
+        <span>📦 バックアップ書き出し</span>
+        <button class="btn btn-ghost btn-sm" id="btn-backup">保存する</button>
       </div>
       <div class="set-row">
         <span>🔔 バイブ</span>
@@ -135,6 +168,41 @@ export function render(el) {
     });
   };
 
+  // ---- サウンド(⑦) ----
+  el.querySelector("#sel-bgm").onchange = (e) => {
+    localStorage.setItem("hdm_bgm", e.target.value);
+    applySoundSettings();
+  };
+  el.querySelector("#sel-se").onchange = (e) => {
+    localStorage.setItem("hdm_se", e.target.value);
+    if (e.target.value === "on") SE("tap");
+  };
+
+  // ---- 誕生日(⑫) ----
+  el.querySelector("#btn-bday").onclick = () => {
+    const key = S.meKey || u.profileKey;
+    const body = document.createElement("div");
+    body.innerHTML = `<p class="dim small">当日はお祝い+プレゼント(年1回)がとどくよ</p>
+      <input type="date" class="txt-input" id="in-bday" value="${esc(S.config?.birthdays?.[key] || "")}">`;
+    modal({ title: "🎂 たんじょうび", body,
+      actions: [
+        { label: "やめる", cls: "btn-ghost" },
+        { label: "ほぞん", cls: "btn-primary", onClick: async (c) => {
+            const v = body.querySelector("#in-bday").value;
+            if (!v) { toast("日付をえらんでね", "📅"); return; }
+            await set(r(`config/birthdays/${key}`), v);
+            toast("たんじょうびを登録したよ", "🎂"); c(); render(el);
+          } },
+      ] });
+  };
+
+  // ---- ペットいちらん / バックアップ ----
+  el.querySelector("#btn-petlist").onclick = openPetList;
+  el.querySelector("#btn-backup").onclick = exportBackup;
+
+  // ---- かぐショップ(⑨) ----
+  renderShop(el.querySelector("#furn-shop"), () => render(el));
+
   // ---- テーマ / バイブ ----
   el.querySelector("#sel-theme").onchange = (e) => {
     localStorage.setItem("hdm_theme", e.target.value);
@@ -153,4 +221,51 @@ export function render(el) {
       location.reload();
     }
   };
+}
+
+
+// =====================================================================
+// かぐショップ(⑨): スロットごとに1つ装備。買う→かざる→はずす
+// =====================================================================
+function renderShop(root, rerender) {
+  const inv = S.shared?.furniture || {};
+  const room = S.config?.room || {};
+  const bySlot = {};
+  for (const f of FURNITURE) (bySlot[f.slot] ||= []).push(f);
+
+  root.innerHTML = Object.entries(bySlot).map(([slot, items]) => `
+    <h4>${FURN_SLOTS[slot].name}</h4>
+    <div class="dress-grid">
+      ${items.map((f) => {
+        const owned = !!inv[f.id];
+        const on = room[slot] === f.id;
+        const price = f.price.coins ? `🪙${f.price.coins}` : `💗${f.price.hearts}`;
+        return `<button class="dress-item ${on ? "on" : ""} ${owned ? "" : "buy"}" data-id="${f.id}">
+          ${f.icon}<b>${esc(f.name)}</b><small>${owned ? (on ? "かざってる" : "もってる") : price}</small>
+        </button>`;
+      }).join("")}
+    </div>`).join("");
+
+  root.querySelectorAll(".dress-item").forEach((b) => {
+    b.onclick = async () => {
+      const f = FURNITURE.find((x) => x.id === b.dataset.id);
+      const owned = !!(S.shared?.furniture || {})[f.id];
+      if (!owned) {
+        const label = f.price.coins ? `🪙${f.price.coins}` : `💗${f.price.hearts}`;
+        if (!(await confirmDlg(`「${f.name}」を ${label} で買う？(2人共有になるよ)`, "買う!"))) return;
+        if (!(await pay(f.price))) { toast("ざんだかが たりない…", "🥲"); return; }
+        await tx(`shared/furniture/${f.id}`, () => true);
+        await bumpStat("buyCount");
+        toast(`「${f.name}」を買った!`, f.icon);
+        logH("furniture", { id: f.id, name: f.name });
+        checkAll();
+      } else {
+        // かざる / はずす(部屋は2人共有なので config/room に保存)
+        const cur = S.config?.room?.[f.slot];
+        await tx(`config/room/${f.slot}`, () => (cur === f.id ? null : f.id));
+        toast(cur === f.id ? "はずしたよ" : "かざったよ!", f.icon);
+      }
+      rerender();
+    };
+  });
 }

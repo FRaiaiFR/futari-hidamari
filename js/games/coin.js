@@ -6,6 +6,7 @@
 import { txMatch } from "../core/match.js";
 import { S, personOf, partnerUid } from "../core/state.js";
 import { esc } from "../core/ui.js";
+import { SE } from "../core/sound.js";
 import { addCoins, bumpStat, recordResult } from "../core/economy.js";
 import { gainExp, addPersonality } from "../pet/pet.js";
 import { logH } from "../core/history.js";
@@ -137,12 +138,17 @@ export default {
       <p>かった人 🪙+40 / まけた人 🪙+15<br>ペットに ✨+25</p>`;
   },
 
+  summary(m) {
+    const d = m.data;
+    return { kind: "vs", scores: d.scores || {}, log: (d.log || []).slice(0, 10) };
+  },
   async rewards(m, isHost) {
     const winner = this.winnerUid(m);
     if (!isHost) {
       const iWon = winner === S.uid;
       await addCoins(iWon ? 40 : 15);
       await recordResult("coin", iWon ? "win" : "lose");
+      if (iWon) SE("win");
       // 「読まれ率」: 自分がにぎった回のうち、あてられた回数
       const myset = (m.data.log || []).filter((l) => l.setter === S.uid);
       await bumpStat("coinSetRounds", myset.length);
