@@ -37,14 +37,15 @@ html[data-theme="night"] {
 
 /* ---- ベース ---------------------------------------------------------- */
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; overscroll-behavior: none; }
+html { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
 body {
-  /* ページ自体を固定して、端で無限に引っ張れる挙動(バウンス)を止める。
-     スクロールは #screen などの内部コンテナだけが行う */
-  position: fixed;
-  inset: 0;
+  /* ページ全体をふつうにスクロールさせる(body固定方式はiOSで不安定なため不採用)。
+     端のバウンスは overscroll-behavior だけで抑える。横スクロールは殺す。 */
+  min-height: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
   font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", sans-serif;
   background: var(--cream);
   color: var(--cocoa);
@@ -71,12 +72,13 @@ small { color: var(--cocoa-2); }
 /* body(position:fixed)の中で #app は画面いっぱいの固定枠。
    高さが固定されることで、中の #screen が flex:1 で正しく縮み、
    はみ出したぶんだけ #screen 内部がスクロールする(唯一のスクロール領域) */
-#app { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+/* ページ全体がスクロールする。タブバーは position:fixed で常時表示なので、
+   #screen の下パディングでコンテンツが隠れないようにする(safe-area対応)。 */
+#app { min-height: 100%; }
 #screen {
-  flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden;
-  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-  padding: 14px 14px calc(var(--tabbar-h) + 24px);
+  padding: 14px 14px calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom));
   max-width: 520px; margin: 0 auto; width: 100%;
+  box-sizing: border-box;
 }
 .page-title { font-size: 19px; margin: 2px 0 12px; }
 

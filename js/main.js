@@ -34,10 +34,10 @@ register(memory);
 register(guess);
 register(uno);
 
-// ---- スマホ誤操作ガード(ピンチズーム禁止。タップ操作には影響しない) ----
-for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {
-  document.addEventListener(ev, (e) => e.preventDefault());   // iOS Safariのピンチ
-}
+// ---- スマホ誤操作ガード(ピンチズームだけ止める。スクロールには干渉しない) ----
+// gesturestart の抑止だけでピンチは始まらない。gesturechange/end まで潰すと
+// iOSでスクロール慣性に副作用が出るため、あえて start のみにする。
+document.addEventListener("gesturestart", (e) => e.preventDefault());
 
 // ---- サウンド(⑦): 初回タップで起動(ブラウザの自動再生制限のため) ----
 addEventListener("pointerdown", () => initSound(), { once: true });
