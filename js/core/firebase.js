@@ -40,8 +40,10 @@ export const db = getDatabase(app);
 /** パス文字列から参照を作るショートカット */
 export const r = (path) => ref(db, path);
 
-/** オフライン閲覧モード: 通信が無いときは書き込みを止めて閲覧のみ許可 */
-export const isOffline = () => typeof navigator !== "undefined" && navigator.onLine === false;
+/** オフライン閲覧モード: 通信が無い/見るだけモード中は書き込みを止めて閲覧のみ許可 */
+export const isOffline = () =>
+  globalThis.__hdmOffline === true ||
+  (typeof navigator !== "undefined" && navigator.onLine === false);
 let offlineToastAt = 0;
 function blockIfOffline() {
   if (!isOffline()) return false;
@@ -69,7 +71,7 @@ export async function tx(path, fn) {
 }
 
 // 書き込み系はオフライン時に何もしない安全ラッパーで再エクスポート
-const _set = set, _update = update, _push = push, _remove = remove;
+// (SDKのset等はimport時に _set 等へリネーム済み)
 const safeSet = (...a) => (blockIfOffline() ? Promise.resolve() : _set(...a));
 const safeUpdate = (...a) => (blockIfOffline() ? Promise.resolve() : _update(...a));
 const safePush = (...a) => (blockIfOffline() ? Promise.resolve({ key: null }) : _push(...a));
