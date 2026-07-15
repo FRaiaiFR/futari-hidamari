@@ -84,9 +84,12 @@ small { color: var(--cocoa-2); }
 
 /* ---- 起動画面 --------------------------------------------------------- */
 #boot, .boot {
-  flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 14px;
-  align-items: center; justify-content: center; height: 100%;
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; flex-direction: column; gap: 14px;
+  align-items: center; justify-content: center;
+  min-height: 100dvh; min-height: 100vh;
   color: var(--cocoa-2); text-align: center; padding: 20px;
+  box-sizing: border-box;
 }
 .boot-pet { font-size: 56px; animation: bob 1.6s ease-in-out infinite; }
 @keyframes bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
@@ -644,7 +647,7 @@ html[data-theme="night"] .mc.open { background: var(--card); }
 .u-hand.dimhand { opacity: .75; }
 
 .u-card {
-  position: relative; flex: 0 0 58px; width: 58px; height: 86px; border-radius: 10px;
+  position: relative; flex: 0 0 66px; width: 66px; height: 98px; border-radius: 11px;
   border: 3px solid #FFF7E6; box-shadow: 0 3px 6px rgba(0,0,0,.18);
   display: flex; align-items: center; justify-content: center;
   transition: transform .15s; color: #fff;
@@ -653,7 +656,7 @@ html[data-theme="night"] .mc.open { background: var(--card); }
   position: absolute; inset: 8px 6px; border-radius: 50%;
   background: rgba(255,255,255,.22); transform: rotate(-25deg);
 }
-.u-glyph { position: relative; font-size: 26px; font-weight: 700; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
+.u-glyph { position: relative; font-size: 30px; font-weight: 700; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
 .u-corner { position: absolute; font-size: 10px; font-weight: 700; opacity: .95; }
 .u-corner.tl { top: 3px; left: 5px; }
 .u-corner.br { bottom: 3px; right: 5px; transform: rotate(180deg); }
@@ -664,8 +667,8 @@ html[data-theme="night"] .mc.open { background: var(--card); }
 .u-card.ok:active { transform: translateY(-8px) scale(.92); }
 .u-card.off { filter: saturate(.45) brightness(.85); }
 .u-card.drawn { outline: 3px solid var(--honey); outline-offset: 2px; }
-.u-card.big { width: 74px; height: 108px; flex: none; }
-.u-card.big .u-glyph { font-size: 34px; }
+.u-card.big { width: 86px; height: 126px; flex: none; }
+.u-card.big .u-glyph { font-size: 40px; }
 .u-disc .u-card.pop { animation: unoplay .35s ease; }
 @keyframes unoplay { 0% { transform: translateY(24px) scale(.7) rotate(-14deg); opacity: 0 } 100% { transform: none; opacity: 1 } }
 
@@ -762,8 +765,7 @@ html[data-theme="night"] .card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .
 #screen { padding-bottom: calc(var(--tabbar-h) + 34px); }
 
 /* ---- 画面切替: ふわっと入場 -------------------------------------------- */
-#screen.anim-in > * { animation: rise .38s cubic-bezier(.2, .8, .3, 1) both; }
-@keyframes rise { 0% { opacity: 0; transform: translateY(14px) } 100% { opacity: 1; transform: none } }
+/* タブ切替でのスライド/フェード演出は撤去(レイアウトシフト・画面移動をなくす) */
 
 /* ---- 部屋: ジオラマ演出 ------------------------------------------------ */
 .room {
@@ -934,14 +936,7 @@ html[data-theme="night"] .boot-err { background: #3A2C36; border-color: #7A4E52;
 
 /* ---- ① ごはんの放物線+もぐもぐ ---------------------------------------- */
 .fx-food { position: fixed; z-index: 75; font-size: 30px; pointer-events: none; will-change: transform; }
-.munch .pet-svg .breathe { animation: munchhop 1.2s ease; }
-@keyframes munchhop {
-  0%, 100% { transform: none }
-  15% { transform: scale(1.08, .9) }
-  35% { transform: translateY(-12px) scale(.96, 1.06) }
-  55% { transform: translateY(0) scale(1.05, .93) }
-  75% { transform: translateY(-6px) }
-}
+/* ごはん時のペットの跳ねは撤去(画面が上下に動いて見えるため) */
 
 /* ---- ②③ 全画面シネマ演出 ---------------------------------------------- */
 .fx-cinema {
@@ -960,7 +955,8 @@ html[data-theme="night"] .boot-err { background: #3A2C36; border-color: #7A4E52;
   animation: fxtitle .6s cubic-bezier(.2,.9,.3,1.4) .2s both;
 }
 @keyframes fxtitle { 0% { transform: scale(.3) rotate(-5deg); opacity: 0 } 100% { transform: none; opacity: 1 } }
-.fx-lv { color: #FFF7E6; font-size: 19px; font-weight: 700; line-height: 1.9; animation: rise .5s .45s both; }
+.fx-lv { color: #FFF7E6; font-size: 19px; font-weight: 700; line-height: 1.9; animation: fxlvin .5s .45s both; }
+@keyframes fxlvin { 0% { opacity: 0 } 100% { opacity: 1 } }
 .fx-skip { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); color: rgba(255, 247, 230, .55); font-size: 12px; }
 .fx-rays {
   position: absolute; width: 480px; height: 480px; border-radius: 50%;
@@ -1107,3 +1103,104 @@ html[data-theme="night"] .furn-poster { background: rgba(60, 70, 110, .8); borde
 .anniv-banner.bday { background: linear-gradient(90deg, #F9E2B8, #CFE7F6); }
 .g-side { display: flex; align-items: center; gap: 8px; }
 .fx-title-evo { font-size: 34px; color: #FFF3D6; }
+
+/* =====================================================================
+   UNO 段組み手札 / スタッキング / カットイン, かずあて刷新UI, ゲーム安全網
+   ===================================================================== */
+
+/* ---- UNO: 手札を5枚ずつ段組み(重ならない) ---------------------------- */
+.u-hand-rows { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 10px 4px; }
+.u-hand-row { display: flex; gap: 8px; justify-content: center; flex-wrap: nowrap; }
+.u-hand-rows.dimhand { opacity: .78; }
+.u-card.ok { transform: translateY(-6px); cursor: pointer; }
+.u-card.ok:active { transform: translateY(-6px) scale(.93); }
+
+/* ---- UNO: スタッキング累積・リバース制約の表示 ------------------------ */
+.u-pending {
+  text-align: center; font-weight: 700; color: var(--berry); font-size: 15px;
+  background: rgba(214, 106, 106, .12); border-radius: 999px; padding: 5px 14px;
+  width: fit-content; margin: 2px auto 6px;
+}
+.u-constraint {
+  text-align: center; font-size: 12.5px; font-weight: 700; color: var(--honey-d);
+  background: rgba(233, 180, 76, .14); border-radius: var(--r-md); padding: 6px 10px; margin: 0 0 6px;
+}
+
+/* ---- UNO: ドローカットイン ------------------------------------------- */
+.u-cutin {
+  position: fixed; inset: 0; z-index: 88; display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.u-cutin b {
+  background: linear-gradient(135deg, var(--cocoa), var(--cocoa-2)); color: #FFF7E6;
+  font-size: 26px; padding: 18px 30px; border-radius: 18px; box-shadow: var(--shadow-lift);
+  animation: cutin 2.4s cubic-bezier(.2,.9,.3,1.2) forwards; border: 3px solid #FFF7E6;
+}
+@keyframes cutin {
+  0% { transform: scale(.5) translateX(-40px); opacity: 0 }
+  16% { transform: scale(1.08); opacity: 1 }
+  28% { transform: scale(1) }
+  80% { opacity: 1 } 100% { opacity: 0; transform: scale(.96) }
+}
+
+/* ---- ゲーム描画エラーの安全網 ---------------------------------------- */
+.game-error { text-align: center; padding: 40px 20px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.game-error .ge-icon { font-size: 52px; }
+.game-error .ge-msg { font-size: 12px; color: var(--cocoa-2); background: var(--milk); padding: 8px 12px; border-radius: 10px; max-width: 300px; word-break: break-all; }
+
+/* =====================================================================
+   かずあてゲーム 刷新UI
+   ===================================================================== */
+.gs-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.gs-badge {
+  display: flex; flex-direction: column; align-items: center; line-height: 1.15;
+  background: var(--card); border: 2px solid var(--pc, var(--latte)); border-radius: var(--r-md);
+  padding: 5px 12px; min-width: 68px;
+}
+.gs-badge small { font-size: 9.5px; color: var(--cocoa-2); }
+.gs-badge b { font-size: 15px; }
+
+/* タイマー(円形) */
+.gs-timer { position: relative; width: 52px; height: 52px; }
+.gs-timer svg { width: 52px; height: 52px; transform: rotate(-90deg); }
+.gs-ring-bg { fill: none; stroke: var(--latte); stroke-width: 4; }
+.gs-ring { fill: none; stroke: var(--leaf); stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset .3s linear, stroke .3s; }
+.gs-timer span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; }
+.gs-timer.danger .gs-ring { stroke: var(--berry); }
+.gs-timer.danger span { color: var(--berry); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { transform: scale(1) } 50% { transform: scale(1.12) } }
+
+.gs-turn { text-align: center; font-size: 13.5px; font-weight: 700; color: var(--cocoa-2); margin: 6px 0; }
+.gs-turn.mine { color: var(--honey-d); }
+
+.gs-hints { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 8px; min-height: 8px; }
+.gs-hchip {
+  position: relative; background: var(--card); border: 1.5px solid var(--latte);
+  border-radius: 999px; padding: 4px 12px 4px 10px; font-size: 12.5px; font-weight: 700;
+}
+.gs-hchip i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-left: 5px; vertical-align: middle; }
+
+/* 数字グリッド 10×10 */
+.gs-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin-bottom: 10px; }
+.gs-cell {
+  aspect-ratio: 1; border-radius: 7px; font-size: clamp(11px, 3.2vw, 15px); font-weight: 700;
+  background: var(--card); border: 1.5px solid var(--latte); color: var(--cocoa);
+  display: flex; align-items: center; justify-content: center; transition: transform .1s, opacity .2s;
+}
+.gs-cell:active:not(:disabled) { transform: scale(.86); background: var(--honey); color: #fff; }
+.gs-cell.faded { opacity: .28; }
+.gs-cell.used {
+  background: var(--berry); color: #fff; border-color: var(--berry); opacity: 1;
+  text-decoration: line-through; font-weight: 900;
+}
+.gs-cell:disabled { cursor: default; }
+
+.gs-actions { text-align: center; margin-bottom: 10px; }
+.gs-history { display: flex; gap: 10px; margin-bottom: 8px; }
+.gs-col { flex: 1; background: var(--milk); border-radius: var(--r-md); padding: 8px 10px; font-size: 13px; }
+.gs-col b { display: block; margin-bottom: 4px; font-size: 12px; }
+.gs-col span { display: inline-block; margin: 0 6px 2px 0; }
+.gs-col .dim { color: var(--cocoa-2); }
+
+.gs-logbox { background: var(--card); border: 1px solid var(--latte); border-radius: var(--r-md); padding: 8px 12px; }
+.gs-logline { font-size: 12px; color: var(--cocoa-2); margin: 2px 0; line-height: 1.5; }

@@ -123,8 +123,27 @@ export function handleMatchChange() {
       document.body.appendChild(overlay);
     }
     overlay.querySelector(".game-stale").classList.toggle("hidden", !isStale(m));
-    if (st === "active") mod.render(overlay.querySelector(".game-body"), m);
-    else renderResult(overlay.querySelector(".game-body"), m, mod);
+    if (st === "active") {
+      // ゲーム側 render の例外で画面が白紙になるのを防ぐ(原因を表示して再試行可能に)
+      try {
+        mod.render(overlay.querySelector(".game-body"), m);
+      } catch (err) {
+        console.error("game render error:", err);
+        const body = overlay.querySelector(".game-body");
+        body.innerHTML = `
+          <div class="game-error">
+            <div class="ge-icon">😵‍💫</div>
+            <p>ゲームの表示でエラーが出ました</p>
+            <p class="ge-msg">${esc(String(err && err.message || err))}</p>
+            <button class="btn btn-primary ge-retry">もういちど表示</button>
+            <button class="btn btn-ghost btn-sm ge-abort">中止してへやへ</button>
+          </div>`;
+        body.querySelector(".ge-retry").onclick = () => handleMatchChange();
+        body.querySelector(".ge-abort").onclick = abort;
+      }
+    } else {
+      renderResult(overlay.querySelector(".game-body"), m, mod);
+    }
     return;
   }
 
@@ -137,13 +156,30 @@ export function handleMatchChange() {
 async function renderResult(el, m, mod) {
   await claimRewards(m, mod);
   const html = mod.renderResult ? mod.renderResult(m) : "";
+  const iWant = !!m.rematch?.[S.uid];
+  const rematchBtn = mod.rematchable
+    ? `<button class="btn btn-primary btn-big rematch-btn" ${iWant ? "disabled" : ""}>
+         ${iWant ? "あいてを まっています…" : "🔄 もう一度あそぶ"}</button>`
+    : "";
   el.innerHTML = `
     <div class="result-wrap">
       ${html}
-      <button class="btn btn-primary btn-big close-result">へやにもどる</button>
+      ${rematchBtn}
+      <button class="btn btn-ghost close-result">へやにもどる</button>
     </div>`;
   el.querySelector(".close-result").onclick = () =>
     txMatch((mm) => (mm.status === "result" ? { status: "idle" } : false));
+
+  const rb = el.querySelector(".rematch-btn");
+  if (rb) rb.onclick = () => txMatch((mm) => {
+    if (mm.status !== "result") return false;
+    const rematch = { ...(mm.rematch || {}), [S.uid]: true };
+    // 両者が押したら、同じルームのまま新しい対戦データで再開
+    if (rematch[mm.players.a] && rematch[mm.players.b]) {
+      return { ...mm, status: "active", data: mod.initData(), claimed: {}, rematch: null, updatedAt: Date.now() };
+    }
+    return { ...mm, rematch, updatedAt: Date.now() };
+  });
 }
 
 /** 報酬の受け取り(1人1回・ペット分はホスト1回のみ、二重付与防止) */

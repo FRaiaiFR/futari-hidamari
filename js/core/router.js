@@ -55,12 +55,10 @@ export async function show(id) {
     b.classList.toggle("on", b.dataset.id === id));
   const mod = await load(id);
   if (S.tab !== id) return;           // 読み込み中に別タブへ移動した場合
-  screenEl.scrollTop = 0;
+  // 画面は動かさず内容だけ差し替える(レイアウトシフト・アニメなし)。
+  // スクロール位置は先頭へ戻すが、これは描画前に行うので視覚的な揺れは出ない。
   mod.render(screenEl);
-  // タブ切替時だけ、ふわっと入場(データ更新のrefreshでは動かさない)
-  screenEl.classList.remove("anim-in");
-  void screenEl.offsetWidth;
-  screenEl.classList.add("anim-in");
+  window.scrollTo(0, 0);
 }
 
 let t = null;
