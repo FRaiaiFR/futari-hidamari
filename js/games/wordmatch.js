@@ -6,6 +6,7 @@ import { txMatch } from "../core/match.js";
 import { S, personOf, partnerUid, on } from "../core/state.js";
 import { esc } from "../core/ui.js";
 import { TOPICS } from "../data/masters.js";
+import { toYomi } from "../data/yomi.js";
 import { addCoins, bumpStat } from "../core/economy.js";
 import { gainExp, addPersonality } from "../pet/pet.js";
 import { logH } from "../core/history.js";
@@ -17,7 +18,9 @@ const ROUNDS = 5;
 // 相手の送信やDB更新で画面が再描画されても、未送信の入力が消えないよう
 // ラウンドごとにローカルへ下書きを保持する。試合が終わったら破棄。
 let drafts = {};
-on("match:idle", () => { drafts = {}; });
+let wmTick = null;
+function clearWmTick() { if (wmTick) { clearInterval(wmTick); wmTick = null; } }
+on("match:idle", () => { drafts = {}; clearWmTick(); });
 
 /** ひらがな寄せの正規化(カタカナ→ひらがな、空白除去、小文字化) */
 function norm(s) {
@@ -38,7 +41,7 @@ export default {
     for (let i = 0; i < ROUNDS; i++) {
       topics.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     }
-    return { round: 1, phase: "input", topics, answers: {}, results: [], matches: 0 };
+    return { round: 1, phase: "input", topics, answers: {}, results: [], matches: 0, roundStart: Date.now() };
   },
 
   render(el, m) {
@@ -48,15 +51,17 @@ export default {
 
     if (d.phase === "input") {
       if (myAns != null) {
+        clearWmTick();
         el.innerHTML = `
           ${head(d)}
           <div class="wm-topic">${esc(topic)}</div>
-          <p class="center">あなたの答え: <b>${esc(myAns)}</b></p>
+          <p class="center">あなたの答え: <b>${myAns ? esc(myAns) : "(むかいてなかった…)"}</b></p>
           <p class="center waiting-dots">あいての答えを まっています</p>`;
         return;
       }
       el.innerHTML = `
         ${head(d)}
+        <div class="wm-timer"><svg viewBox="0 0 40 40"><circle class="wm-ring-bg" cx="20" cy="20" r="17"/><circle class="wm-ring" cx="20" cy="20" r="17" id="wm-ring"/></svg><span id="wm-sec">5</span></div>
         <div class="wm-topic">${esc(topic)}</div>
         <div class="wm-form">
           <input class="wm-input" maxlength="12" placeholder="ぱっと思いついた言葉" autocomplete="off">
@@ -68,28 +73,37 @@ export default {
       input.addEventListener("input", () => { drafts[d.round] = input.value; });
       input.focus();
       try { const n = input.value.length; input.setSelectionRange(n, n); } catch { /* 非対応は無視 */ }
-      const submit = () => {
+      let submitted = false;
+      const submit = (auto = false) => {
+        if (submitted) return;
         const w = input.value.trim();
-        if (!w) return;
-        delete drafts[d.round]; // 送信ずみの下書きは破棄(再送信は基盤側で拒否される)
-        this.submit(w);
+        if (!w && !auto) return;         // 手動送信は空欄不可、自動提出は空欄OK
+        submitted = true;
+        clearWmTick();
+        delete drafts[d.round];
+        this.submit(w);                  // 空欄なら "" が入る
       };
-      el.querySelector(".wm-go").onclick = submit;
-      input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+      el.querySelector(".wm-go").onclick = () => submit(false);
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(false); });
+
+      // ---- 5秒タイマー(残り0で自動提出) ----
+      this.startWmTimer(el, d, () => submit(true));
       return;
     }
 
     // reveal
+    clearWmTick();
     const res = d.results[d.results.length - 1];
     const pu = partnerUid();
     const meP = personOf(S.uid), paP = personOf(pu);
+    const showWord = (w) => w ? esc(w) : "─";
     el.innerHTML = `
       ${head(d)}
       <div class="wm-topic small">${esc(res.topic)}</div>
       <div class="wm-reveal ${res.matched ? "hit" : ""}">
-        <div class="wm-ans" style="--pc:${meP.color}"><span>${meP.emoji} ${esc(meP.name)}</span><b>${esc(res.words[S.uid] ?? "")}</b></div>
+        <div class="wm-ans" style="--pc:${meP.color}"><span>${meP.emoji} ${esc(meP.name)}</span><b>${showWord(res.words[S.uid])}</b></div>
         <div class="wm-vs">${res.matched ? "💞" : "💭"}</div>
-        <div class="wm-ans" style="--pc:${paP.color}"><span>${paP.emoji} ${esc(paP.name)}</span><b>${esc(res.words[pu] ?? "")}</b></div>
+        <div class="wm-ans" style="--pc:${paP.color}"><span>${paP.emoji} ${esc(paP.name)}</span><b>${showWord(res.words[pu])}</b></div>
       </div>
       <p class="wm-judge">${res.matched ? "ぴったり!いしんでんしん!" : "おしい…それも らしいね"}</p>
       <button class="btn btn-primary btn-big wm-next">${d.round >= ROUNDS ? "けっかを見る" : "つぎのお題へ"}</button>`;
@@ -105,7 +119,8 @@ export default {
       // 2人そろったら判定
       const uids = [m.players.a, m.players.b];
       if (uids.every((u) => d.answers[u] != null)) {
-        const matched = norm(d.answers[uids[0]]) === norm(d.answers[uids[1]]);
+        const y0 = toYomi(d.answers[uids[0]]), y1 = toYomi(d.answers[uids[1]]);
+        const matched = y0 !== "" && y0 === y1;   // 読みが一致(空欄同士は不一致)
         d.results = [...(d.results || []),
           { topic: d.topics[d.round - 1], words: { ...d.answers }, matched }];
         if (matched) d.matches = (d.matches || 0) + 1;
@@ -117,6 +132,7 @@ export default {
   },
 
   next() {
+    clearWmTick();
     return txMatch((m) => {
       if (m.status !== "active" || m.gameId !== this.id || m.data.phase !== "reveal") return false;
       const d = m.data;
@@ -126,10 +142,29 @@ export default {
         d.round += 1;
         d.phase = "input";
         d.answers = {};
+        d.roundStart = Date.now();
       }
       m.updatedAt = Date.now();
       return m;
     });
+  },
+
+  /** 5秒タイマー(共有の roundStart を基準にするので両者ほぼ同期) */
+  startWmTimer(el, d, onTimeout) {
+    clearWmTick();
+    const ring = el.querySelector("#wm-ring");
+    const secEl = el.querySelector("#wm-sec");
+    const CIRC = 2 * Math.PI * 17;
+    if (ring) ring.style.strokeDasharray = CIRC;
+    const update = () => {
+      const elapsed = (Date.now() - (d.roundStart || Date.now())) / 1000;
+      const left = Math.max(0, 5 - elapsed);
+      if (secEl) secEl.textContent = Math.ceil(left);
+      if (ring) { ring.style.strokeDashoffset = CIRC * (1 - left / 5); ring.classList.toggle("danger", left <= 2); }
+      if (left <= 0) { clearWmTick(); onTimeout(); }
+    };
+    update();
+    wmTick = setInterval(update, 100);
   },
 
   renderResult(m) {

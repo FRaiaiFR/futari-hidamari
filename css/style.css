@@ -1218,3 +1218,63 @@ html[data-theme="night"] .u-cgroup { background: rgba(255,255,255,.04); }
 
 .gs-logbox { background: var(--card); border: 1px solid var(--latte); border-radius: var(--r-md); padding: 8px 12px; }
 .gs-logline { font-size: 12px; color: var(--cocoa-2); margin: 2px 0; line-height: 1.5; }
+
+/* =====================================================================
+   ゲーム仕様変更: コイン待機/難易度, いしんでんしんタイマー, 神経衰弱1画面+ペア演出
+   ===================================================================== */
+
+/* ---- コイン: 待機ロック画面 ------------------------------------------- */
+.coin-wait { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 40px 0; }
+.coin-lock { font-size: 52px; animation: lockpulse 1.6s ease-in-out infinite; }
+@keyframes lockpulse { 0%,100% { transform: scale(1); opacity: .8 } 50% { transform: scale(1.1); opacity: 1 } }
+.coin-modes .mode-btn { width: 92px; }
+.coin-btns.opts-3, .coin-btns.opts-4, .coin-btns.opts-5 { flex-wrap: wrap; justify-content: center; }
+.coin-btns.opts-3 .coin-btn, .coin-btns.opts-4 .coin-btn, .coin-btns.opts-5 .coin-btn { flex: 0 0 88px; }
+
+/* ---- いしんでんしん: 5秒タイマー ------------------------------------- */
+.wm-timer { position: relative; width: 46px; height: 46px; margin: 0 auto 8px; }
+.wm-timer svg { width: 46px; height: 46px; transform: rotate(-90deg); }
+.wm-ring-bg { fill: none; stroke: var(--latte); stroke-width: 4; }
+.wm-ring { fill: none; stroke: var(--leaf); stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset .1s linear, stroke .3s; }
+.wm-ring.danger { stroke: var(--berry); }
+.wm-timer span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; }
+
+/* ---- 神経衰弱: 1画面に収めるレイアウト ------------------------------- */
+/* 10列固定。ノーマル=5行, ハード=10行。縦の残り高さに必ず収める。 */
+.mem-grid {
+  display: grid; grid-template-columns: repeat(var(--cols, 10), 1fr);
+  gap: 4px; align-content: center; justify-content: center;
+  max-height: calc(100dvh - var(--tabbar-h) - 150px);
+}
+.mem-grid.mode-hard { gap: 2.5px; }
+.mem-grid .mc {
+  aspect-ratio: 1 / 1; width: 100%; height: auto;
+  font-size: clamp(11px, 3.4vw, 20px);
+}
+/* ハードは10行あるので、行高を画面から逆算して詰める(正方形をやめ高さ優先) */
+.mem-grid.mode-hard .mc {
+  aspect-ratio: auto;
+  height: calc((100dvh - var(--tabbar-h) - 165px) / 10 - 3px);
+  font-size: clamp(9px, 2.6vw, 15px); border-radius: 6px;
+}
+.mem-grid.mode-normal .mc {
+  aspect-ratio: auto;
+  height: calc((100dvh - var(--tabbar-h) - 165px) / 5 - 4px);
+  max-height: 62px;
+}
+
+/* ペア成立の赤丸演出 */
+.mc { position: relative; }
+.mc.matched { animation: matchpop .4s ease; z-index: 2; }
+.mc-ring {
+  position: absolute; inset: 50%; width: 74%; height: 74%;
+  transform: translate(-50%, -50%); border-radius: 50%;
+  border: 4px solid #E4574D; pointer-events: none;
+  animation: ringpop .45s cubic-bezier(.2,.9,.3,1.4) both;
+}
+@keyframes matchpop { 0%,100% { transform: scale(1) } 40% { transform: scale(1.12) } }
+@keyframes ringpop {
+  0% { transform: translate(-50%,-50%) scale(.3); opacity: 0 }
+  55% { transform: translate(-50%,-50%) scale(1.12); opacity: 1 }
+  100% { transform: translate(-50%,-50%) scale(1); opacity: 1 }
+}

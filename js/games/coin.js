@@ -1,7 +1,8 @@
 // =====================================================================
-// 裏表心理コイン(対戦ゲーム)
-// にぎる人がコインの表裏を決め、あてる人が予想。役割は毎ラウンド交代。
-// 全5ラウンド(引き分けなし)。
+// 裏表心理コイン(対戦ゲーム) — 順次進行版
+// にぎる人が先に面を選び、あてる人はそれまで待機(ロック)。
+// にぎる人が選び終わってから あてる人が予想。役割は毎ラウンド交代。
+// 難易度=選択肢の数(2〜5択)。全5ラウンド(引き分けなし)。
 // =====================================================================
 import { txMatch } from "../core/match.js";
 import { S, personOf, partnerUid } from "../core/state.js";
@@ -12,86 +13,145 @@ import { gainExp, addPersonality } from "../pet/pet.js";
 import { logH } from "../core/history.js";
 
 const ROUNDS = 5;
-const FACE = { omote: "🌞 おもて", ura: "🌚 うら" };
+
+// 選択肢のマスター(最大5択。難易度で先頭からn個を使う)
+const OPTIONS = [
+  { id: "omote", icon: "🌞", label: "おもて" },
+  { id: "ura",   icon: "🌚", label: "うら" },
+  { id: "hoshi", icon: "⭐", label: "ほし" },
+  { id: "tuki",  icon: "🌙", label: "つき" },
+  { id: "hana",  icon: "🌸", label: "はな" },
+];
+const optOf = (id) => OPTIONS.find((o) => o.id === id) || { icon: "?", label: id };
+const faceLabel = (id) => `${optOf(id).icon} ${optOf(id).label}`;
 
 export default {
   id: "coin",
   name: "裏表心理コイン",
   icon: "🪙",
   desc: "あいての心を読めるか、しんけんしょうぶ!",
-  rules: `「にぎる人」がコインの表裏をきめて、<br>「あてる人」がそれを予想。<br>あたれば あてる人、はずれれば にぎる人 の得点。<br>役割は交代しながら全${ROUNDS}回戦!`,
+  rules: `「にぎる人」がまず面をきめて、そのあと「あてる人」が予想。<br>あたれば あてる人、はずれれば にぎる人 の得点。<br>役割は交代しながら全${ROUNDS}回戦!`,
+  rematchable: true,
 
   initData() {
-    return { round: 1, phase: "choose", picks: {}, scores: {}, log: [] };
+    // phase: "mode"(難易度選択) → "set"(にぎる) → "guess"(あてる) → "reveal"
+    return { phase: "mode", opts: 2, round: 1, setPick: null, guessPick: null, scores: {}, log: [] };
   },
 
-  /** このラウンドで「にぎる人」のuid(奇数R=さそった人) */
   setterOf(m, round) {
     return round % 2 === 1 ? m.players.a : m.players.b;
   },
 
   render(el, m) {
     const d = m.data;
-    const setter = this.setterOf(m, d.round);
-    const iAmSetter = setter === S.uid;
-    const myPick = d.picks?.[S.uid];
-    const pu = partnerUid();
+    const isHost = m.invitedBy === S.uid;
     const scoreBar = this.scoreBar(m);
 
-    if (d.phase === "choose") {
-      if (myPick) {
-        el.innerHTML = `${scoreBar}
-          <div class="coin-role">${iAmSetter ? "🫰 あなたが にぎる番" : "🔮 あなたが あてる番"}</div>
-          <p class="center">えらんだ: <b>${FACE[myPick]}</b></p>
-          <p class="center waiting-dots">あいてを まっています</p>`;
-        return;
-      }
-      el.innerHTML = `${scoreBar}
-        <div class="coin-role">${iAmSetter
-          ? "🫰 あなたが <b>にぎる番</b><br><small>あいてに読まれない方をえらぼう</small>"
-          : "🔮 あなたが <b>あてる番</b><br><small>あいてがにぎった面はどっち?</small>"}</div>
-        <div class="coin-btns">
-          <button class="coin-btn" data-v="omote">🌞<span>おもて</span></button>
-          <button class="coin-btn" data-v="ura">🌚<span>うら</span></button>
-        </div>`;
-      el.querySelectorAll(".coin-btn").forEach((b) => {
-        b.onclick = () => this.pick(b.dataset.v);
+    // ---- 難易度選択(ホストが選ぶ) ----
+    if (d.phase === "mode") {
+      el.innerHTML = isHost ? `
+        <p class="center" style="margin:14px 0 6px">むずかしさ(えらぶ数)を きめてね</p>
+        <div class="mode-btns coin-modes">
+          ${[2, 3, 4, 5].map((n) => `
+            <button class="mode-btn" data-opts="${n}"><b>${n}択</b><span>${OPTIONS.slice(0, n).map((o) => o.icon).join("")}</span></button>`).join("")}
+        </div>`
+        : `<p class="center waiting-dots" style="margin-top:40px">あいてが むずかしさを えらんでいます</p>`;
+      el.querySelectorAll("[data-opts]").forEach((b) => {
+        b.onclick = () => txMatch((mm) => {
+          if (mm.status !== "active" || mm.data.phase !== "mode") return false;
+          mm.data.opts = +b.dataset.opts;
+          mm.data.phase = "set";
+          mm.updatedAt = Date.now();
+          return mm;
+        });
       });
       return;
     }
 
-    // reveal
+    const setter = this.setterOf(m, d.round);
+    const iAmSetter = setter === S.uid;
+    const opts = OPTIONS.slice(0, d.opts || 2);
+
+    // ---- にぎるフェーズ ----
+    if (d.phase === "set") {
+      if (iAmSetter) {
+        el.innerHTML = `${scoreBar}
+          <div class="coin-role">🫰 あなたが <b>にぎる番</b><br><small>あいてに読まれない面をえらぼう</small></div>
+          ${this.optButtons(opts)}`;
+        el.querySelectorAll(".coin-btn").forEach((b) => { b.onclick = () => this.setPick(b.dataset.v); });
+      } else {
+        // あてる人は待機(ロック)
+        el.innerHTML = `${scoreBar}
+          <div class="coin-role">🔮 あなたが <b>あてる番</b></div>
+          <div class="coin-wait"><div class="coin-lock">🔒</div>
+            <p class="waiting-dots">相手が選択中です</p>
+            <p class="dim small">えらび終わるまで まってね</p></div>`;
+      }
+      return;
+    }
+
+    // ---- あてるフェーズ ----
+    if (d.phase === "guess") {
+      if (iAmSetter) {
+        el.innerHTML = `${scoreBar}
+          <div class="coin-role">🫰 あなたが にぎった: <b>${faceLabel(d.setPick)}</b></div>
+          <div class="coin-wait"><div class="coin-lock">👀</div>
+            <p class="waiting-dots">相手が予想中です</p></div>`;
+      } else {
+        el.innerHTML = `${scoreBar}
+          <div class="coin-role">🔮 あなたが <b>あてる番</b><br><small>あいてがにぎった面はどれ?</small></div>
+          ${this.optButtons(opts)}`;
+        el.querySelectorAll(".coin-btn").forEach((b) => { b.onclick = () => this.guessPick(b.dataset.v); });
+      }
+      return;
+    }
+
+    // ---- リザルト(reveal) ----
     const last = d.log[d.log.length - 1];
     const hit = last.hit;
-    const winnerUid = hit ? last.guesser : last.setter;
-    const w = personOf(winnerUid);
+    const w = personOf(hit ? last.guesser : last.setter);
     el.innerHTML = `${scoreBar}
       <div class="coin-reveal">
-        <div class="coin-face big">${last.set === "omote" ? "🌞" : "🌚"}</div>
-        <p>にぎられていたのは <b>${FACE[last.set]}</b><br>よそうは <b>${FACE[last.guess]}</b></p>
+        <div class="coin-face big">${optOf(last.set).icon}</div>
+        <p>にぎられていたのは <b>${faceLabel(last.set)}</b><br>よそうは <b>${faceLabel(last.guess)}</b></p>
         <p class="coin-judge" style="color:${w.color}">${hit ? "🎯 よみ的中!" : "😏 だましきった!"} <b>${esc(w.name)}</b> のポイント!</p>
       </div>
       <button class="btn btn-primary btn-big coin-next">${d.round >= ROUNDS ? "けっかを見る" : "つぎのしょうぶへ"}</button>`;
     el.querySelector(".coin-next").onclick = () => this.next();
   },
 
-  pick(v) {
+  optButtons(opts) {
+    return `<div class="coin-btns opts-${opts.length}">
+      ${opts.map((o) => `<button class="coin-btn" data-v="${o.id}">${o.icon}<span>${o.label}</span></button>`).join("")}
+    </div>`;
+  },
+
+  setPick(v) {
     return txMatch((m) => {
       if (m.status !== "active" || m.gameId !== this.id) return false;
       const d = m.data;
-      if (d.phase !== "choose" || d.picks?.[S.uid]) return false;
-      d.picks = { ...(d.picks || {}), [S.uid]: v };
-      const uids = [m.players.a, m.players.b];
-      if (uids.every((u) => d.picks[u])) {
-        const setter = this.setterOf(m, d.round);
-        const guesser = uids.find((u) => u !== setter);
-        const hit = d.picks[setter] === d.picks[guesser];
-        const winner = hit ? guesser : setter;
-        d.scores = { ...(d.scores || {}) };
-        d.scores[winner] = (d.scores[winner] || 0) + 1;
-        d.log = [...(d.log || []), { round: d.round, setter, guesser, set: d.picks[setter], guess: d.picks[guesser], hit }];
-        d.phase = "reveal";
-      }
+      if (d.phase !== "set" || this.setterOf(m, d.round) !== S.uid) return false;
+      d.setPick = v;
+      d.phase = "guess";       // にぎり完了 → あてる人のロック解除
+      m.updatedAt = Date.now();
+      return m;
+    });
+  },
+
+  guessPick(v) {
+    return txMatch((m) => {
+      if (m.status !== "active" || m.gameId !== this.id) return false;
+      const d = m.data;
+      const setter = this.setterOf(m, d.round);
+      if (d.phase !== "guess" || setter === S.uid) return false;   // あてる人だけ
+      d.guessPick = v;
+      const guesser = S.uid;
+      const hit = d.setPick === v;
+      const winner = hit ? guesser : setter;
+      d.scores = { ...(d.scores || {}) };
+      d.scores[winner] = (d.scores[winner] || 0) + 1;
+      d.log = [...(d.log || []), { round: d.round, setter, guesser, set: d.setPick, guess: v, hit }];
+      d.phase = "reveal";
       m.updatedAt = Date.now();
       return m;
     });
@@ -101,13 +161,8 @@ export default {
     return txMatch((m) => {
       if (m.status !== "active" || m.gameId !== this.id || m.data.phase !== "reveal") return false;
       const d = m.data;
-      if (d.round >= ROUNDS) {
-        m.status = "result";
-      } else {
-        d.round += 1;
-        d.phase = "choose";
-        d.picks = {};
-      }
+      if (d.round >= ROUNDS) { m.status = "result"; }
+      else { d.round += 1; d.phase = "set"; d.setPick = null; d.guessPick = null; }
       m.updatedAt = Date.now();
       return m;
     });
@@ -125,12 +180,12 @@ export default {
 
   winnerUid(m) {
     const sa = m.data.scores?.[m.players.a] || 0, sb = m.data.scores?.[m.players.b] || 0;
-    return sa > sb ? m.players.a : m.players.b;
+    return sa >= sb ? m.players.a : m.players.b;
   },
 
   renderResult(m) {
-    const w = personOf(this.winnerUid(m));
     const sa = m.data.scores?.[m.players.a] || 0, sb = m.data.scores?.[m.players.b] || 0;
+    const w = personOf(this.winnerUid(m));
     return `
       <div class="result-icon">🪙</div>
       <h2 style="color:${w.color}">${w.emoji} ${esc(w.name)} のかち!</h2>
@@ -140,8 +195,9 @@ export default {
 
   summary(m) {
     const d = m.data;
-    return { kind: "vs", scores: d.scores || {}, log: (d.log || []).slice(0, 10) };
+    return { kind: "vs", scores: d.scores || {}, opts: d.opts, log: (d.log || []).slice(0, 10) };
   },
+
   async rewards(m, isHost) {
     const winner = this.winnerUid(m);
     if (!isHost) {
@@ -149,7 +205,6 @@ export default {
       await addCoins(iWon ? 40 : 15);
       await recordResult("coin", iWon ? "win" : "lose");
       if (iWon) SE("win");
-      // 「読まれ率」: 自分がにぎった回のうち、あてられた回数
       const myset = (m.data.log || []).filter((l) => l.setter === S.uid);
       await bumpStat("coinSetRounds", myset.length);
       await bumpStat("coinSetRead", myset.filter((l) => l.hit).length);

@@ -11,7 +11,7 @@
 // =====================================================================
 import { txMatch } from "../core/match.js";
 import { S, personOf, partnerUid } from "../core/state.js";
-import { esc, modal, confetti } from "../core/ui.js";
+import { esc, modal, confetti, toast } from "../core/ui.js";
 import { addCoins, addFood, recordResult } from "../core/economy.js";
 import { gainExp, addPersonality } from "../pet/pet.js";
 import { logH } from "../core/history.js";
@@ -64,6 +64,14 @@ const drawCount = (card) => (card[1] === "D" ? 2 : 4);
 const seatOf = (m, uid) => (m.players.a === uid ? "a" : "b");
 const otherSeat = (s) => (s === "a" ? "b" : "a");
 
+/** 手番を確定させる唯一の入口。turn と turnStamp を必ずセットで更新する。
+ *  これを通すことで、どのルートのターン遷移でも「ターン開始」を漏れなく検出できる。 */
+let _stampCounter = 0;
+function setTurn(d, seat) {
+  d.turn = seat;
+  d.turnStamp = Date.now() * 1000 + (++_stampCounter % 1000); // 常に一意で単調増加
+}
+
 /** 山札から1枚(切れたら捨て札を再シャッフル) */
 function take(d) {
   if (!d.deck.length) {
@@ -103,7 +111,7 @@ export default {
     for (let i = 0; i < 7; i++) { d.hands.a.push(d.deck.pop()); d.hands.b.push(d.deck.pop()); }
     let top = d.deck.pop();
     while (!/[0-9]/.test(top[1])) { d.deck.unshift(top); top = d.deck.pop(); }
-    d.disc = [top]; d.color = top[0]; d.turn = "b";
+    d.disc = [top]; d.color = top[0]; setTurn(d, "b");
     return d;
   },
 
@@ -122,6 +130,12 @@ export default {
     const opCount = (d.hands[opSeat] || []).length;
     const myTurn = d.turn === mySeat;
     const top = d.disc[d.disc.length - 1];
+
+    // ---- ターン開始の共通処理 ----
+    // どのルート(通常・スキップ・リバース・+2/+4ドロー後・引いて出せずパス後)から
+    // 手番が来ても、ここ一箇所で「あなたのターンです」を必ず表示する。
+    // updatedAt をキーに「新しく自分の番になった瞬間」だけ発火(再描画では出さない)。
+    this._notifyTurn(m, myTurn);
 
     // 出せるカードの判定(制約・スタッキングを考慮)
     const canPlay = (card, i) => {
@@ -232,7 +246,15 @@ export default {
     }
   },
 
-  unoSplashHtml(d, mySeat) {
+  /** ターン開始の共通通知。手番が確定した瞬間に打たれる turnStamp を見て、
+   *  自分の番になった各回で1度だけ「あなたのターンです」を出す。
+   *  カットイン更新やUNO既読など「手番と無関係な更新」では発火しない。 */
+  _notifyTurn(m, myTurn) {
+    const stamp = m.data.turnStamp || 0;
+    if (this._seenStamp === stamp) return;   // このターン開始は通知済み
+    this._seenStamp = stamp;
+    if (myTurn && !m.data.winner) toast("あなたのターンです", "🌈");
+  },
     // 「2→1になった瞬間」だけ。表示済みなら出さない
     if (!d.uno || d.unoShown?.[d.uno.ts]) return "";
     return `<div class="u-splash" data-uno="${d.uno.ts}">UNO!!</div>`;
@@ -311,20 +333,20 @@ export default {
 
       if (isDraw(card)) {
         d.pending = (d.pending || 0) + drawCount(card);
-        d.turn = otherSeat(seat);        // 相手へ(重ねるか引くか)
+        setTurn(d, otherSeat(seat));     // 相手へ(重ねるか引くか)
         d.msg = `${me}の${v === "D" ? "+2" : "+4"}! 累積${d.pending}枚`;
       } else if (v === "S") {
         // 2人ルール: スキップは相手を飛ばして自分が続けてプレイ。
         // ただし次に出せるのは「同じ色 or 別色のスキップ」のみ(制約)。
-        d.turn = seat;                   // 手番はそのまま自分
+        setTurn(d, seat);                // 手番はそのまま自分(スキップ)
         d.constraint = "skip";
         d.msg = `${me}のスキップ⊘! もういちど${me}の番`;
       } else if (v === "R") {
-        d.turn = otherSeat(seat);        // リバースも相手へ、ただし制約付き
+        setTurn(d, otherSeat(seat));     // リバースも相手へ、ただし制約付き
         d.constraint = "reverse";
         d.msg = `${me}のリバース⇄!`;
       } else {
-        d.turn = otherSeat(seat);
+        setTurn(d, otherSeat(seat));
         d.msg = "";
       }
 
@@ -346,7 +368,10 @@ export default {
       d.pending = 0;
       d._askedPending = false;
       d.cutin = { seat, n, ts: Date.now() };
-      d.turn = otherSeat(seat);          // 引いたら手番は相手へ
+      // 引いた本人がそのまま自分のターンでプレイを続ける(手番は移さない)
+      setTurn(d, seat);
+      d.constraint = null;
+      d.drew = null;
       d.msg = "";
       m.updatedAt = Date.now();
       return m;
@@ -361,12 +386,12 @@ export default {
       if (d.turn !== seat || d.drew != null || d.pending > 0) return false;
       const card = take(d);
       const top = d.disc[d.disc.length - 1];
-      if (!card) { d.turn = otherSeat(seat); d.msg = "ひけるカードがない! パス"; d.constraint = null; m.updatedAt = Date.now(); return m; }
+      if (!card) { setTurn(d, otherSeat(seat)); d.msg = "ひけるカードがない! パス"; d.constraint = null; m.updatedAt = Date.now(); return m; }
       d.hands[seat].push(card);
       // 制約下では引いたカードも制約に従う
       const ok = d.constraint ? playableUnder(d.constraint, card, top, d.color) : playable(card, top, d.color);
       if (ok) { d.drew = d.hands[seat].length - 1; d.msg = ""; }
-      else { d.turn = otherSeat(seat); d.drew = null; d.constraint = null; d.msg = "ひいたけど出せなかった…"; }
+      else { setTurn(d, otherSeat(seat)); d.drew = null; d.constraint = null; d.msg = "ひいたけど出せなかった…"; }
       m.updatedAt = Date.now();
       return m;
     });
@@ -378,7 +403,7 @@ export default {
       const d = m.data;
       const seat = seatOf(m, S.uid);
       if (d.turn !== seat || d.drew == null) return false;
-      d.turn = otherSeat(seat); d.drew = null; d.constraint = null; d.msg = "";
+      setTurn(d, otherSeat(seat)); d.drew = null; d.constraint = null; d.msg = "";
       m.updatedAt = Date.now();
       return m;
     });

@@ -22,8 +22,8 @@ export const EMOJIS = [
 ];
 
 const MODES = {
-  normal: { name: "ノーマル", pairs: 25, cols: 5 },
-  hard:   { name: "ハード",   pairs: 50, cols: 8 },
+  normal: { name: "ノーマル", pairs: 25, cols: 10 },
+  hard:   { name: "ハード",   pairs: 50, cols: 10 },
 };
 
 export function buildBoard(pairs) {
@@ -109,12 +109,14 @@ export default {
           <b class="${myTurn ? "mem-turn" : ""}">${myTurn ? "あなたの番!" : `${esc(paP.name)}の番`}</b></span>
         <span class="mem-chip" style="--pc:${paP.color}">${paP.emoji}${paScore}</span>
       </div>
-      <div class="mem-grid" style="--cols:${mode.cols}">
+      <div class="mem-grid mode-${d.mode}" style="--cols:${mode.cols}">
         ${d.cards.map((id, i) => {
           if (d.taken?.[i]) return `<span class="mc gone"></span>`;
           const open = showIdx.has(i);
-          return `<button class="mc ${open ? "open" : ""}" data-i="${i}" ${open || !myTurn || d.phase !== "play" ? "disabled" : ""}>
-            ${open ? EMOJIS[id] : "🐾"}</button>`;
+          // ペア成立の瞬間だけ、そろった2枚に赤丸を重ねる
+          const isMatchPair = d.phase === "reveal" && d.reveal?.matched && (i === d.reveal.a || i === d.reveal.b);
+          return `<button class="mc ${open ? "open" : ""} ${isMatchPair ? "matched" : ""}" data-i="${i}" ${open || !myTurn || d.phase !== "play" ? "disabled" : ""}>
+            ${open ? EMOJIS[id] : "🐾"}${isMatchPair ? `<i class="mc-ring"></i>` : ""}</button>`;
         }).join("")}
       </div>`;
 
@@ -122,10 +124,11 @@ export default {
       b.onclick = () => this.flip(+b.dataset.i);
     });
 
-    // 2枚めくったら1.1秒見せて自動で次へ(どちらのクライアントが進めても安全)
+    // ペア成立=約1秒そのまま見せてから処理 / はずれ=1.1秒見せてから交代
     if (d.phase === "reveal") {
       clearTimeout(advTimer);
-      advTimer = setTimeout(() => this.advance(), 1100);
+      const wait = d.reveal?.matched ? 1000 : 1100;
+      advTimer = setTimeout(() => this.advance(), wait);
     }
   },
 
@@ -139,9 +142,7 @@ export default {
       if (d.flipped.length === 2) {
         const [a, b] = d.flipped;
         const matched = d.cards[a] === d.cards[b];
-        if (matched) {
-          d.taken = { ...(d.taken || {}), [a]: S.uid, [b]: S.uid };
-        }
+        // 成立しても取得処理は advance で行う(演出中はカードを表示したままにするため)
         d.reveal = { a, b, matched, ts: Date.now() };
         d.phase = "reveal";
         d.flipped = [];
@@ -156,8 +157,14 @@ export default {
       if (m.status !== "active" || m.gameId !== this.id) return false;
       const d = m.data;
       if (d.phase !== "reveal" || !d.reveal) return false;
+      const { a, b, matched } = d.reveal;
+      if (matched) {
+        // 演出が終わったこのタイミングで取得済みにする
+        d.taken = { ...(d.taken || {}), [a]: d.turn, [b]: d.turn };
+      } else {
+        d.turn = other(m, d.turn);   // はずれたら交代
+      }
       const done = Object.keys(d.taken || {}).length >= d.cards.length;
-      if (!d.reveal.matched) d.turn = other(m, d.turn); // はずれたら交代
       d.reveal = null;
       d.phase = "play";
       if (done) m.status = "result";
