@@ -107,6 +107,13 @@ export default {
   render(el, m) {
     clearTick();
     const d = m.data;
+    // Firebaseは空配列/空オブジェクトを保存しないため、読み戻すとキーが消える。
+    // 参照前に必ず既定値で埋める(白紙・エラーの根本原因対策)。
+    d.guesses = d.guesses || {};
+    d.guesses.a = d.guesses.a || [];
+    d.guesses.b = d.guesses.b || [];
+    d.hints = d.hints || [];
+    d.log = d.log || [];
     const mySeat = seatOf(m, S.uid);
     const turnSeat = d.turn || seatOf(m, m.invitedBy);   // 先攻=さそった人
     const myTurn = turnSeat === mySeat;
@@ -211,6 +218,8 @@ export default {
     return txMatch((m) => {
       if (m.status !== "active" || m.gameId !== this.id) return false;
       const d = m.data;
+      d.guesses = d.guesses || {}; d.guesses.a = d.guesses.a || []; d.guesses.b = d.guesses.b || [];
+      d.log = d.log || [];
       const seat = seatOf(m, S.uid);
       const turnSeat = d.turn || seatOf(m, m.invitedBy);
       if (turnSeat !== seat || (d.guesses[seat] || []).length >= TRIES) return false;
@@ -236,10 +245,11 @@ export default {
     return txMatch((m) => {
       if (m.status !== "active" || m.gameId !== this.id) return false;
       const d = m.data;
+      d.hints = d.hints || []; d.log = d.log || [];
       const seat = seatOf(m, S.uid);
       const turnSeat = d.turn || seatOf(m, m.invitedBy);
       if (turnSeat !== seat) return false;
-      if ((d.hints || []).filter((h) => h.by === seat).length >= HINTS) return false;
+      if (d.hints.filter((h) => h.by === seat).length >= HINTS) return false;
       const used = (d.hints || []).map((h) => h.kind);
       const h = makeHint(d.answer, used);
       d.hints = [...(d.hints || []), { by: seat, ...h }];
@@ -255,6 +265,8 @@ export default {
     return txMatch((m) => {
       if (m.status !== "active" || m.gameId !== this.id) return false;
       const d = m.data;
+      d.guesses = d.guesses || {}; d.guesses.a = d.guesses.a || []; d.guesses.b = d.guesses.b || [];
+      d.log = d.log || [];
       const seat = seatOf(m, S.uid);
       const turnSeat = d.turn || seatOf(m, m.invitedBy);
       if (turnSeat !== seat) return false;                 // 自分の番のときだけ
@@ -273,6 +285,7 @@ export default {
   renderResult(m) {
     clearTick();
     const d = m.data;
+    d.guesses = d.guesses || { a: [], b: [] };
     const w = d.winner ? personOf(m.players[d.winner]) : null;
     return `
       <div class="result-icon">${w ? "🎯" : "🤝"}</div>

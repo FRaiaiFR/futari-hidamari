@@ -48,6 +48,17 @@ export const playable = (card, top, color) =>
 export const playableAfterReverse = (card, color) =>
   card[0] === color || card[1] === "R";
 
+/** スキップ制約下の出せる判定: 同じ色 or 別色のスキップ のみ(スキップ同士は色不問) */
+export const playableAfterSkip = (card, color) =>
+  card[0] === color || card[1] === "S";
+
+/** 制約種別に応じた出せる判定 */
+export function playableUnder(constraint, card, top, color) {
+  if (constraint === "reverse") return playableAfterReverse(card, color);
+  if (constraint === "skip") return playableAfterSkip(card, color);
+  return playable(card, top, color);
+}
+
 const isDraw = (card) => card[1] === "D" || card[1] === "F";
 const drawCount = (card) => (card[1] === "D" ? 2 : 4);
 const seatOf = (m, uid) => (m.players.a === uid ? "a" : "b");
@@ -116,14 +127,35 @@ export default {
     const canPlay = (card, i) => {
       if (!myTurn) return false;
       if (d.pending > 0) return isDraw(card);                       // スタッキング中は+カードのみ
-      if (d.constraint === "reverse") return playableAfterReverse(card, d.color);
+      if (d.constraint) return playableUnder(d.constraint, card, top, d.color);
       if (d.drew != null) return i === d.drew && playable(card, top, d.color);
       return playable(card, top, d.color);
     };
 
-    // 手札を5枚ずつ段組み
-    const rows = [];
-    for (let i = 0; i < myHand.length; i += 5) rows.push(myHand.slice(i, i + 5).map((c, j) => ({ c, i: i + j })));
+    // ---- 手札を色ごとに整理(赤→青→緑→黄、各色内は数字→特殊、ワイルドは最後) ----
+    // 元のindexは操作に必要なので保持したまま並べ替える。
+    const COLOR_ORDER = { R: 0, B: 1, G: 2, Y: 3, W: 4 };
+    const valRank = (v) => {
+      if (/[0-9]/.test(v)) return +v;      // 数字: 0〜9
+      return 10 + ["S", "R", "D"].indexOf(v); // 特殊: スキップ→リバース→+2 の順で数字の後ろ
+    };
+    const ordered = myHand
+      .map((c, i) => ({ c, i }))
+      .sort((x, y) => {
+        const co = COLOR_ORDER[x.c[0]] - COLOR_ORDER[y.c[0]];
+        if (co !== 0) return co;
+        return valRank(x.c[1]) - valRank(y.c[1]);
+      });
+
+    // 色ごとにグループ化 → 各グループを最大5枚ずつの段に分割
+    const groups = [];
+    for (const item of ordered) {
+      const col = item.c[0];
+      let g = groups[groups.length - 1];
+      if (!g || g.col !== col) { g = { col, items: [] }; groups.push(g); }
+      g.items.push(item);
+    }
+    const COLOR_CLASS = { R: "u-g-R", G: "u-g-G", B: "u-g-B", Y: "u-g-Y", W: "u-g-W" };
 
     el.innerHTML = `
       <div class="u-op">
@@ -145,16 +177,24 @@ export default {
 
       ${d.pending > 0 ? `<div class="u-pending">＋カード累積 <b>${d.pending}枚</b></div>` : ""}
       ${d.constraint === "reverse" ? `<p class="u-constraint">⇄ リバース! 同じ色か、別の色のリバースしか出せないよ</p>` : ""}
+      ${d.constraint === "skip" ? `<p class="u-constraint">⊘ スキップ! 同じ色か、別の色のスキップしか出せないよ</p>` : ""}
 
       <p class="u-msg">${d.msg ? esc(d.msg) : myTurn ? "あなたの番!" : `${esc(paP.name)}の番…`}</p>
 
-      <div class="u-hand-rows ${myTurn ? "" : "dimhand"}">
-        ${rows.map((row) => `<div class="u-hand-row">
-          ${row.map(({ c, i }) => {
-            const ok = canPlay(c, i);
-            return cardHTML(c, { cls: `${ok ? "ok" : "off"} ${i === d.drew ? "drawn" : ""}`, attr: `data-i="${i}"` });
-          }).join("")}
-        </div>`).join("")}
+      <div class="u-hand-colors ${myTurn ? "" : "dimhand"}">
+        ${groups.map((g) => {
+          // 各色グループを最大5枚ずつの段に割る
+          const rows = [];
+          for (let i = 0; i < g.items.length; i += 5) rows.push(g.items.slice(i, i + 5));
+          return `<div class="u-cgroup ${COLOR_CLASS[g.col]}">
+            ${rows.map((row) => `<div class="u-hand-row">
+              ${row.map(({ c, i }) => {
+                const ok = canPlay(c, i);
+                return cardHTML(c, { cls: `${ok ? "ok" : "off"} ${i === d.drew ? "drawn" : ""}`, attr: `data-i="${i}"` });
+              }).join("")}
+            </div>`).join("")}
+          </div>`;
+        }).join("")}
       </div>
       <p class="dim center small-note">じぶんの手札 ${myHand.length}枚</p>
 
@@ -251,7 +291,7 @@ export default {
 
       // 出せるかを最終チェック(制約・スタッキング・引いた直後)
       if (d.pending > 0) { if (!isDraw(card)) return false; }
-      else if (d.constraint === "reverse") { if (!playableAfterReverse(card, d.color)) return false; }
+      else if (d.constraint) { if (!playableUnder(d.constraint, card, top, d.color)) return false; }
       else if (d.drew != null) { if (idx !== d.drew || !playable(card, top, d.color)) return false; }
       else if (!playable(card, top, d.color)) return false;
 
@@ -274,8 +314,11 @@ export default {
         d.turn = otherSeat(seat);        // 相手へ(重ねるか引くか)
         d.msg = `${me}の${v === "D" ? "+2" : "+4"}! 累積${d.pending}枚`;
       } else if (v === "S") {
-        d.turn = otherSeat(seat);        // 2人ルール: スキップも相手へ
-        d.msg = `${me}のスキップ⊘`;
+        // 2人ルール: スキップは相手を飛ばして自分が続けてプレイ。
+        // ただし次に出せるのは「同じ色 or 別色のスキップ」のみ(制約)。
+        d.turn = seat;                   // 手番はそのまま自分
+        d.constraint = "skip";
+        d.msg = `${me}のスキップ⊘! もういちど${me}の番`;
       } else if (v === "R") {
         d.turn = otherSeat(seat);        // リバースも相手へ、ただし制約付き
         d.constraint = "reverse";
@@ -321,7 +364,7 @@ export default {
       if (!card) { d.turn = otherSeat(seat); d.msg = "ひけるカードがない! パス"; d.constraint = null; m.updatedAt = Date.now(); return m; }
       d.hands[seat].push(card);
       // 制約下では引いたカードも制約に従う
-      const ok = d.constraint === "reverse" ? playableAfterReverse(card, d.color) : playable(card, top, d.color);
+      const ok = d.constraint ? playableUnder(d.constraint, card, top, d.color) : playable(card, top, d.color);
       if (ok) { d.drew = d.hands[seat].length - 1; d.msg = ""; }
       else { d.turn = otherSeat(seat); d.drew = null; d.constraint = null; d.msg = "ひいたけど出せなかった…"; }
       m.updatedAt = Date.now();

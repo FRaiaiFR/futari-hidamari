@@ -1111,7 +1111,21 @@ html[data-theme="night"] .furn-poster { background: rgba(60, 70, 110, .8); borde
 /* ---- UNO: 手札を5枚ずつ段組み(重ならない) ---------------------------- */
 .u-hand-rows { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 10px 4px; }
 .u-hand-row { display: flex; gap: 8px; justify-content: center; flex-wrap: nowrap; }
-.u-hand-rows.dimhand { opacity: .78; }
+.u-hand-rows.dimhand, .u-hand-colors.dimhand { opacity: .78; }
+
+/* 色ごとにまとめた手札(赤→青→緑→黄→ワイルド) */
+.u-hand-colors { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 10px 4px; }
+.u-cgroup {
+  display: flex; flex-direction: column; gap: 6px; align-items: center;
+  padding: 8px 7px; border-radius: 14px; background: var(--milk);
+  border-top: 3px solid var(--latte);
+}
+.u-cgroup.u-g-R { border-top-color: #E4574D; background: rgba(228, 87, 77, .07); }
+.u-cgroup.u-g-B { border-top-color: #5B8DBE; background: rgba(91, 141, 190, .07); }
+.u-cgroup.u-g-G { border-top-color: #6FBF73; background: rgba(111, 191, 115, .07); }
+.u-cgroup.u-g-Y { border-top-color: #F2C14E; background: rgba(242, 193, 78, .09); }
+.u-cgroup.u-g-W { border-top-color: #6E5B47; background: rgba(110, 91, 71, .07); }
+html[data-theme="night"] .u-cgroup { background: rgba(255,255,255,.04); }
 .u-card.ok { transform: translateY(-6px); cursor: pointer; }
 .u-card.ok:active { transform: translateY(-6px) scale(.93); }
 
