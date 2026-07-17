@@ -255,6 +255,8 @@ export default {
     this._seenStamp = stamp;
     if (myTurn && !m.data.winner) toast("あなたのターンです", "🌈");
   },
+
+  unoSplashHtml(d, mySeat) {
     // 「2→1になった瞬間」だけ。表示済みなら出さない
     if (!d.uno || d.unoShown?.[d.uno.ts]) return "";
     return `<div class="u-splash" data-uno="${d.uno.ts}">UNO!!</div>`;
