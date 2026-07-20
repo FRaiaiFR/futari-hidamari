@@ -71,17 +71,13 @@ export const DIALOGUE = {
     "きょうの質問、もうこたえた？{partner}の答え、気になるなぁ",
     "ふたりのこと、もっと知りたいな。質問にこたえてみて？",
   ],
-  wantMemory: [
-    "しんけいすいじゃくが見たい! どっちが おぼえてるかな?",
-    "カードあわせしようよ! ぼくも いっしょに おぼえる!",
+  wantOmoide: [
+    "ふたりの おもいでクイズ、やってみない？",
+    "ぼく、ふたりのこと どれだけ知ってるか ためしてみて!",
   ],
-  wantGuess: [
-    "かずあてゲームの気分! ふたりの勘、どっちがするどい?",
-    "1から100のひみつの数字…あてっこが見たいな!",
-  ],
-  wantUno: [
-    "きょうはUNOが見たい! 「ウノ!!」ってさけぶの、かっこいい",
-    "カードバトルの日! UNOでしょうぶしてみせて!",
+  wantKokoro: [
+    "あいての こたえ、あてられるかな？ こころあて しよ!",
+    "ふたりの きもちが つうじてるか みてみたいな",
   ],
   tickled: [
     "ひゃひゃひゃ! くすぐったいよ〜!",
@@ -121,13 +117,21 @@ export const DIALOGUE = {
 };
 
 // おねだり対象 → セリフの対応表(ゲームを増やしたらここにも1行)
+DIALOGUE.sulk = [
+  "…ふたりとも、ずっと来てくれなかった…さみしかったんだから",
+  "……もう。どこ いってたの? ぎゅっとして くれたら ゆるしてあげる",
+];
+DIALOGUE.dream = [
+  "むにゃ…{you}…それは ぼくのごはん…",
+  "すぅ…ふたりで おでかけしてる ゆめ…えへへ",
+];
+
 DIALOGUE.wants = {
   wordmatch: DIALOGUE.wantWordmatch,
   coin: DIALOGUE.wantCoin,
   talk: DIALOGUE.wantTalk,
-  memory: DIALOGUE.wantMemory,
-  guess: DIALOGUE.wantGuess,
-  uno: DIALOGUE.wantUno,
+  omoide: DIALOGUE.wantOmoide,
+  kokoro: DIALOGUE.wantKokoro,
 };
 
 // 特別進化のかたち(Lv50時の最高性格で決まる)

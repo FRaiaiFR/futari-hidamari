@@ -49,7 +49,6 @@ export function SE(name) {
     case "evolve": [392, 494, 587, 784, 988, 1175].forEach((f, i) => tone(f, t + i * 0.11, 0.5, "sine", 0.12));
                    tone(1568, t + 0.66, 0.8, "sine", 0.10); break;
     case "win":    [659, 659, 659, 880].forEach((f, i) => tone(f, t + i * 0.11, i === 3 ? 0.4 : 0.1, "triangle", 0.13)); break;
-    case "uno":    tone(740, t, 0.1, "sawtooth", 0.07); tone(988, t + 0.1, 0.22, "sawtooth", 0.07); break;
     case "tickle": [784, 988, 784, 1175].forEach((f, i) => tone(f, t + i * 0.06, 0.07, "triangle", 0.09)); break;
   }
 }

@@ -3,7 +3,7 @@
 // 起動 → ログイン確認 → DB購読 → 日次処理(ログインボーナス・ハート) → 画面表示
 // =====================================================================
 import { PARTNERS, APP } from "./config.js";
-import { auth, r, tx, onValue, onAuthStateChanged } from "./core/firebase.js";
+import { auth, r, tx, set, onValue, onAuthStateChanged } from "./core/firebase.js";
 import { S, emit, partnerUid } from "./core/state.js";
 import { applyTheme, todayStr, yesterdayStr, hourNow, toast } from "./core/ui.js";
 import { renderLogin } from "./core/auth.js";
@@ -23,16 +23,14 @@ import { stageForLevel, STAGE_NAMES } from "./pet/pet.js";
 import { on } from "./core/state.js";
 import wordmatch from "./games/wordmatch.js";
 import coin from "./games/coin.js";
-import memory from "./games/memory.js";
-import guess from "./games/guess.js";
-import uno from "./games/uno.js";
+import omoide from "./games/omoide.js";
+import kokoro from "./games/kokoro.js";
 
 // ---- ゲームを対戦基盤に登録(新ゲームはここに1行足すだけ) ----
 register(wordmatch);
 register(coin);
-register(memory);
-register(guess);
-register(uno);
+register(omoide);
+register(kokoro);
 
 // ---- スマホ誤操作ガード(ピンチズームだけ止める。スクロールには干渉しない) ----
 // gesturestart の抑止だけでピンチは始まらない。gesturechange/end まで潰すと
@@ -42,7 +40,7 @@ document.addEventListener("gesturestart", (e) => e.preventDefault());
 // ---- サウンド(⑦): 初回タップで起動(ブラウザの自動再生制限のため) ----
 addEventListener("pointerdown", () => initSound(), { once: true });
 document.addEventListener("click", (e) => {
-  if (e.target.closest(".btn, .act, .tab, .mc, .u-card.ok, .login-card")) SE("tap");
+  if (e.target.closest(".btn, .act, .hot, .oq-opt, .coin-btn, .lv-chip, .login-card")) SE("tap");
 });
 
 // ---- 演出(②③・卒業)の購読: どの画面にいても発火する ----
@@ -52,6 +50,13 @@ on("pet:evolve", ({ level }) => {
   evolveFx(STAGE_NAMES[stage] || "あたらしいすがた", { ...S.pet, level });
 });
 on("pet:graduate", ({ name, gen }) => graduateFx(name, gen));
+
+// ---- 21時(よるのとい開封時刻)をまたいだら再描画 ----
+let lastOpenPhase = new Date().getHours() >= 21;
+setInterval(() => {
+  const nowOpen = new Date().getHours() >= 21;
+  if (nowOpen !== lastOpenPhase) { lastOpenPhase = nowOpen; refresh(); }
+}, 30_000);
 
 // ---- テーマ(夜は自動で室内灯モード)。1分ごとに再評価 ----
 applyTheme();
@@ -236,6 +241,14 @@ async function afterBoot() {
 
   // ---- 週間ミッション(⑬): ログイン日数(1日1回) ----
   if (res.committed) bumpMission("login");
+
+  // ---- ケンカ検知: 「ふたりとも来なかった期間」を測るため最終訪問時刻を共有に記録 ----
+  {
+    const prev = S.shared?.lastVisitAt || 0;
+    const gapDays = prev ? (Date.now() - prev) / 86400000 : 0;
+    if (gapDays >= 3) sessionStorage.setItem("hdm_sulk", "1");   // 3日以上あいた → 拗ねモード(home.jsが読む)
+    set(r("shared/lastVisitAt"), Date.now()).catch(() => {});
+  }
 
   // ---- 誕生日イベント(⑫): 年1回のプレゼント ----
   await birthdayEvent();

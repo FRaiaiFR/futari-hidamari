@@ -2,20 +2,23 @@
 // ホーム画面 = ペットの部屋(このアプリの中心)
 // =====================================================================
 import { S, me, partner, partnerUid, personOf } from "../core/state.js";
-import { esc, isNight, agoJP, toast, modal } from "../core/ui.js";
+import { esc, isNight, isSleepTime, agoJP, toast, modal, confetti } from "../core/ui.js";
 import { renderPetSVG } from "../pet/petView.js";
 import { feed, petPet, effHunger, moodOf, MOOD_ICONS, expNeed, stageForLevel, STAGE_NAMES, equip, PETS_PER_DAY } from "../pet/pet.js";
 import { speak, todaysWish } from "../pet/dialogue.js";
-import { boostToday, pay, bumpStat } from "../core/economy.js";
+import { boostToday, pay, bumpStat, addFood } from "../core/economy.js";
 import { ACCESSORIES, SLOT_NAMES } from "../data/masters.js";
 import { FORMS } from "../data/dialogues.js";
-import { tx } from "../core/firebase.js";
+import { tx, r } from "../core/firebase.js";
 import { show } from "../core/router.js";
 import { logH } from "../core/history.js";
 import { checkAll } from "../core/achievements.js";
 import { MATCH_GAMES } from "../core/match.js";
 import { todayStr } from "../core/ui.js";
 import { feedFly } from "../core/fx.js";
+import { dreamLine, petCertNo } from "../core/memory.js";
+import { yoruState, openYoru } from "./yoru.js";
+import { set } from "../core/firebase.js";
 import { SE } from "../core/sound.js";
 import { cachedWeather } from "../core/weather.js";
 import { aiLine } from "../pet/dialogue.js";
@@ -26,6 +29,13 @@ let lastTickle = 0;
 // 吹き出しは20秒キャッシュ(データ更新のたびに変わるとうるさいため)
 let bubble = { text: "", at: 0 };
 let aiAsked = 0;
+function setBubbleText(el, text) {
+  if (!text) return;
+  bubble = { text, at: Date.now() };
+  const b = el.querySelector("#pet-bubble") || document.querySelector("#pet-bubble");
+  if (b) { b.textContent = text; b.classList.add("pop"); }
+}
+
 function line(force = null) {
   if (force) { bubble = { text: speak(force), at: Date.now() }; return bubble.text; }
   if (Date.now() - bubble.at > 20000) {
@@ -53,6 +63,7 @@ export function openPetList() {
     <div class="pl-list">
       <div class="pl-item now">
         <span class="pl-svg">${renderPetSVG(cur)}</span>
+        <button class="pl-cert" data-cert="${cur?.gen || 1}">📜</button>
         <span class="pl-txt"><b>${esc(cur?.name || "")}</b> <i class="chip todo">そだてちゅう</i><br>
           <small>第${cur?.gen || 1}世代・Lv${cur?.level || 1}・${STAGE_NAMES[stageForLevel(cur?.level || 1)]}${cur?.form ? `・${FORMS[cur.form].name}` : ""}<br>
           ${new Date(cur?.bornAt || Date.now()).toLocaleDateString("ja-JP")} うまれ</small></span>
@@ -60,6 +71,7 @@ export function openPetList() {
       ${alumni.map((a) => `
         <div class="pl-item">
           <span class="pl-svg">${renderPetSVG({ ...a, level: 100, equipped: {} })}</span>
+          <button class="pl-cert" data-cert="${a.gen}">📜</button>
           <span class="pl-txt"><b>${esc(a.name)}</b> 🎓<br>
             <small>第${a.gen}世代・Lv100・${a.form ? FORMS[a.form].name : "とくべつ"}<br>
             ${new Date(a.bornAt).toLocaleDateString("ja-JP")}〜${new Date(a.graduatedAt).toLocaleDateString("ja-JP")} 卒業</small></span>
@@ -70,6 +82,15 @@ export function openPetList() {
       : `<p class="dim center small">Lv100までそだてると、卒業生としてここにならぶよ</p>`}`;
   modal({ title: "🐾 ペットいちらん", body, cls: "m-wide",
     actions: [{ label: "とじる", cls: "btn-ghost" }] });
+  // 世界に1匹証明書
+  body.querySelectorAll("[data-cert]").forEach((b) => {
+    b.onclick = () => {
+      const gen = +b.dataset.cert;
+      const target = gen === (S.pet?.gen || 1) && !S.alumni?.[`gen${gen}`] ? S.pet
+        : S.alumni?.[`gen${gen}`] || S.pet;
+      openCert(target);
+    };
+  });
   body.querySelectorAll(".pl-fav").forEach((b) => {
     b.onclick = async () => {
       await tx(`petAlumni/gen${b.dataset.gen}/fav`, (v) => !v);
@@ -111,6 +132,26 @@ export function render(el) {
   const bdayName = bdayKey ? personOf(Object.keys(S.users).find((u) => S.users[u]?.profileKey === bdayKey) || "")?.name : null;
   // 卒業生(過去ペット): 部屋でのんびり歩く(表示は4匹まで)
   const alumni = Object.values(S.alumni || {}).sort((a, b) => a.gen - b.gen).slice(-4);
+  // 気配の温度: 相手が6時間以内に触ったモノは ほんのり光る
+  const paTouch = pu ? S.users[pu]?.lastTouch : null;
+  const warmObj = paTouch && Date.now() - paTouch.ts < 6 * 3600_000 ? paTouch.obj : null;
+  const warm = (obj) => (warmObj === obj ? "warm" : "");
+  // 21時のとい(キャンドル)の状態バッジ
+  const yst = yoruState();
+  const candleBadge = yst === "todo" ? "❗" : yst === "ready" ? "✨" : yst === "waiting" ? "⏳" : "";
+  // 季節の来客: 月替わりで窓辺に あそびに来る
+  const VISITORS = ["🐦", "🕊", "🦋", "🐝", "🐞", "🦜", "🦗", "🌾", "🍄", "🦉", "⛄", "🐧"];
+  const visitor = VISITORS[mon - 1];
+  // 部屋の成長: レベルでなく「出来事」で家具が増える(2人の累計から判定)
+  const totalStat = (k) => Object.values(S.users || {}).reduce((n, uu) => n + (uu?.stats?.[k] || 0), 0);
+  const growth = {
+    cushion: totalStat("petCount") >= 100,           // 100回なでた → クッション
+    milk: totalStat("feedCount") >= 200,             // ごはん200回 → ミルク
+    frame: Object.keys(S.shared?.dictionary || {}).length >= 30,  // ことば30 → 額縁
+  };
+  // ペットの夢: 深夜0〜5時 or ねむり中
+  const dreamTime = new Date().getHours() < 5 || isSleepTime();
+
   // 家具(⑨)
   const room = S.config?.room || {};
   const furnOf = (slot) => FURNITURE.find((f) => f.id === room[slot]);
@@ -150,6 +191,16 @@ export function render(el) {
       ${furnOf("shelfd") ? `<span class="furn" style="${FURN_SLOTS.shelfd.pos}">${furnOf("shelfd").icon}</span>` : ""}
       ${furnOf("poster") ? `<span class="furn furn-poster" style="${FURN_SLOTS.poster.pos}">${furnOf("poster").icon}</span>` : ""}
       <div class="lamp"></div>
+      <span class="visitor" id="visitor" title="きせつのおきゃくさま">${visitor}</span>
+      <button class="hot hot-post ${warm("post")}" id="hot-post" title="ポスト">📮</button>
+      <button class="hot hot-toy ${warm("toy")}" id="hot-toy" title="あそびばこ">🧸</button>
+      <button class="hot hot-book ${warm("book")}" id="hot-book" title="きろくのたな">📔</button>
+      <button class="hot hot-door ${warm("door")}" id="hot-door" title="おへやのそと">🚪</button>
+      <button class="hot hot-candle ${warm("candle")}" id="hot-candle" title="よるのとい">🕯${candleBadge ? `<i class="candle-badge">${candleBadge}</i>` : ""}</button>
+      <button class="hot hot-basket ${warm("basket")}" id="hot-basket" title="ごはんかご">🧺</button>
+      ${growth.cushion ? `<span class="grow grow-cushion" title="100回なでた しるし">🛋</span>` : ""}
+      ${growth.milk ? `<span class="grow grow-milk" title="ごはん200回の しるし">🍼</span>` : ""}
+      ${growth.frame ? `<span class="grow grow-frame" title="ことば30この しるし">🖼</span>` : ""}
       ${season !== "summer" ? `<div class="season-fx">${"<i></i>".repeat(6)}</div>` : ""}
       <div class="bubble" id="pet-bubble">${esc(line())}</div>
       ${alumni.map((a, i) => `
@@ -215,6 +266,79 @@ export function render(el) {
     await feed();
   };
   el.querySelector("#btn-pets").onclick = openPetList;
+
+  // ---- ホットスポット(ワンシーン主義): 部屋のモノからすべての画面へ ----
+  const touch = (obj) => set(r(`users/${S.uid}/lastTouch`), { obj, ts: Date.now() }).catch(() => {});
+  const hots = [
+    ["#hot-post", "post", () => show("talk")],
+    ["#hot-toy", "toy", () => show("play")],
+    ["#hot-book", "book", () => show("records")],
+    ["#hot-door", "door", () => show("other")],
+    ["#hot-candle", "candle", () => openYoru()],
+  ];
+  for (const [sel, obj, fn] of hots) {
+    const b = el.querySelector(sel);
+    if (b) b.onclick = () => { touch(obj); fn(); };
+  }
+
+  // ---- ごはんかご: つまんで投げる(ドラッグ)。タップでも従来どおりあげられる ----
+  const basket = el.querySelector("#hot-basket");
+  const hitEl0 = el.querySelector("#pet-hit");
+  if (basket) {
+    let dragEl = null, dragged = false;
+    basket.addEventListener("pointerdown", (ev) => {
+      if ((me()?.food || 0) < 1) return;
+      dragged = false;
+      dragEl = document.createElement("div");
+      dragEl.className = "fx-food";
+      dragEl.textContent = "🍚";
+      dragEl.style.left = ev.clientX - 15 + "px";
+      dragEl.style.top = ev.clientY - 15 + "px";
+      document.body.appendChild(dragEl);
+      basket.setPointerCapture(ev.pointerId);
+    });
+    basket.addEventListener("pointermove", (ev) => {
+      if (!dragEl) return;
+      dragged = true;
+      dragEl.style.left = ev.clientX - 15 + "px";
+      dragEl.style.top = ev.clientY - 15 + "px";
+    });
+    basket.addEventListener("pointerup", async (ev) => {
+      const de = dragEl; dragEl = null;
+      if (!de) { return; }
+      const rect = hitEl0.getBoundingClientRect();
+      const overPet = ev.clientX > rect.left - 20 && ev.clientX < rect.right + 20 &&
+                      ev.clientY > rect.top - 20 && ev.clientY < rect.bottom + 30;
+      de.remove();
+      touch("basket");
+      if (!dragged || !overPet) {
+        if (!dragged) { // ただのタップ → 従来のごはん(放物線)
+          feedFly(basket, hitEl0, () => setBubble(el, "fed"));
+          await feed();
+        }
+        return;
+      }
+      // ペットの上ではなした → その場で もぐもぐ
+      hitEl0.classList.remove("munch"); void hitEl0.offsetWidth; hitEl0.classList.add("munch");
+      await feed();
+      setBubble(el, effHunger() >= 100 ? null : "fed");
+    });
+    basket.addEventListener("pointercancel", () => { dragEl?.remove(); dragEl = null; });
+  }
+
+  // ---- 季節の来客: タップで ひとこと+1日1回ギフト ----
+  const vis = el.querySelector("#visitor");
+  if (vis) vis.onclick = async () => {
+    const key = `visitor_${todayStr()}`;
+    const g = await tx(`users/${S.uid}/gifts/${key}`, (v) => (v ? false : true));
+    if (g.committed) {
+      await addFood(1);
+      setBubbleText(el, "おきゃくさまが 🍚を おすそわけしてくれた!");
+      confetti(12);
+    } else {
+      setBubbleText(el, "きょうは もう あそんでいったよ");
+    }
+  };
   const doPet = async () => {
     const { capped } = await petPet();
     setBubble(el, capped ? "pettedMax" : "petted");
@@ -240,6 +364,24 @@ export function render(el) {
   hitEl.addEventListener("pointerup", cancelPress);
   hitEl.addEventListener("pointerleave", cancelPress);
   hitEl.addEventListener("click", () => { if (!tickled) doPet(); });
+  // なで軌跡: 指でなでる動きに反応(累積60pxで1なで)。押す→触るへ
+  let strokeAcc = 0, lastPt = null;
+  hitEl.addEventListener("pointermove", (ev) => {
+    if (ev.buttons !== 1 && ev.pointerType !== "touch") return;
+    if (lastPt) {
+      strokeAcc += Math.hypot(ev.clientX - lastPt.x, ev.clientY - lastPt.y);
+      if (strokeAcc > 60) { strokeAcc = 0; clearTimeout(pressTimer); doPet(); }
+    }
+    lastPt = { x: ev.clientX, y: ev.clientY };
+  });
+  hitEl.addEventListener("pointerleave", () => { lastPt = null; strokeAcc = 0; });
+  // ペットの夢: 深夜やねむり中にタップすると 夢のひとこと
+  if (dreamTime) {
+    hitEl.addEventListener("click", () => {
+      const dm = dreamLine();
+      if (dm) setBubbleText(el, dm);
+    }, { once: true });
+  }
   el.querySelector("#act-dress").onclick = openDressup;
   el.querySelector("#wish-card").onclick = () => show(wishDef.tab);
 }
@@ -302,4 +444,25 @@ function openDressup() {
     });
   };
   paint();
+}
+
+
+/** 世界に1匹証明書: この2人のもとにしか存在しないことの証 */
+function openCert(pet) {
+  if (!pet) return;
+  const parents = Object.values(S.users || {}).map((u) => u?.name).filter(Boolean).join(" & ") || "ふたり";
+  const body = document.createElement("div");
+  body.innerHTML = `
+    <div class="cert">
+      <div class="cert-inner">
+        <p class="cert-title">🕊 せかいに1ぴき しょうめいしょ 🕊</p>
+        <div class="cert-pet">${renderPetSVG({ ...pet, equipped: pet.equipped || {} })}</div>
+        <p class="cert-name">${esc(pet.name)}</p>
+        <p class="cert-row">こたいばんごう <b>${petCertNo(pet)}</b></p>
+        <p class="cert-row">だい${pet.gen || 1}せだい ・ ${new Date(pet.bornAt || Date.now()).toLocaleDateString("ja-JP")} うまれ</p>
+        <p class="cert-row">りょうしん: <b>${esc(parents)}</b></p>
+        <p class="cert-note">このこは、せかいじゅうで ふたりのもとにしか いません</p>
+      </div>
+    </div>`;
+  modal({ title: "", body, cls: "m-wide", actions: [{ label: "たいせつにする💗", cls: "btn-primary" }] });
 }

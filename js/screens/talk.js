@@ -5,13 +5,16 @@
 // ・「あいて待ち」表示中に相手が答えたら、自動で見せ合い画面に切り替わる
 // =====================================================================
 import { S, me, partnerUid, personOf, on, off } from "../core/state.js";
-import { esc, dailyPick, todayStr, fmtDateTimeJP, toast, modal } from "../core/ui.js";
+import { esc, dailyPick, todayStr, fmtDateTimeJP, toast, modal, confetti } from "../core/ui.js";
 import { QUESTIONS, LEVEL_NAMES, LEVEL_ICONS } from "../data/questions.js";
 import { r, set } from "../core/firebase.js";
-import { addFood, bumpStat } from "../core/economy.js";
+import { addFood, addCoins, bumpStat } from "../core/economy.js";
 import { gainExp, addPersonality } from "../pet/pet.js";
 import { logH } from "../core/history.js";
 import { bumpMission } from "../core/missions.js";
+import { push, tx } from "../core/firebase.js";
+import { learnWord } from "../core/memory.js";
+import { toYomi } from "../data/yomi.js";
 import { checkAll } from "../core/achievements.js";
 import { refresh } from "../core/router.js";
 
@@ -63,6 +66,7 @@ const CHIP = {
 };
 
 export function render(el) {
+  const postHtml = renderPost();
   const daily = dailyPick(QUESTIONS, 3);
   const todays = todaysQuestions(curLevel);
   const shown = new Set([daily.id, ...[1, 2, 3].flatMap((l) => todaysQuestions(l).map((q) => q.id))]);
@@ -92,6 +96,7 @@ export function render(el) {
     </button>`;
 
   el.innerHTML = `
+    ${postHtml}
   <div class="talk">
     <h2 class="page-title">💬 はなす</h2>
 
@@ -124,6 +129,7 @@ export function render(el) {
   el.querySelectorAll("[data-q]").forEach((b) => {
     b.onclick = () => openQuestion(QUESTIONS.find((q) => q.id === b.dataset.q));
   });
+  wirePost(el);
 }
 
 // ---------------------------------------------------------------------
@@ -213,4 +219,128 @@ function openForm(q, theirs) {
     ],
   });
   body.querySelector(".ans-input").focus();
+}
+
+
+// =====================================================================
+// 📮 ポスト: ペット経由の伝言 + 非同期なぞなぞ
+// 直接チャットではなく、必ずペットが咥えて届ける(既読圧のない連絡)
+// =====================================================================
+function memoList() { return Object.entries(S.shared?.memo || {}).sort((a, b) => a[1].ts - b[1].ts); }
+function nazoData() { return S.shared?.nazo || null; }
+
+function renderPost() {
+  const pu = partnerUid();
+  const paP = personOf(pu);
+  const memos = memoList();
+  const unread = memos.filter(([, mm]) => mm.from !== S.uid && !mm.readBy?.[S.uid]);
+  const nazo = nazoData();
+  const nazoForMe = nazo && nazo.from !== S.uid && !nazo.solvedAt;
+  const nazoMine = nazo && nazo.from === S.uid && !nazo.solvedAt;
+
+  return `
+  <section class="card post-card">
+    <div class="hc-title">💌 ペットのおとどけもの</div>
+    ${unread.length
+      ? unread.map(([k, mm]) => `
+        <button class="memo-item" data-memo="${k}">
+          🐾💌 <span>${esc(paP.name)}から あずかってるよ! <b>タップでうけとる</b></span>
+        </button>`).join("")
+      : `<p class="dim small">いま あずかりものは ないみたい</p>`}
+    <div class="post-actions">
+      <button class="btn btn-ghost btn-sm" id="btn-memo">💌 ことづけをたのむ</button>
+      ${!nazo || nazo.solvedAt ? `<button class="btn btn-ghost btn-sm" id="btn-nazo">❓ なぞなぞをしかける</button>` : ""}
+    </div>
+    ${nazoForMe ? `
+      <div class="nazo-box">
+        <p>❓ ${esc(paP.name)}からの なぞなぞ!</p>
+        <p class="nazo-q">${esc(nazo.question)}</p>
+        ${nazo.hint ? `<p class="dim small">ヒント: ${esc(nazo.hint)}</p>` : ""}
+        <div class="nazo-form"><input class="txt-input" id="nazo-ans" maxlength="12" placeholder="こたえ">
+        <button class="btn btn-primary btn-sm" id="nazo-go">こたえる</button></div>
+      </div>` : ""}
+    ${nazoMine ? `<p class="dim small">❓ なぞなぞを しかけちゅう… ${esc(paP.name)}が とくのを まってるよ</p>` : ""}
+  </section>`;
+}
+
+function wirePost(el) {
+  const pu = partnerUid();
+  const paP = personOf(pu);
+
+  // 伝言の受け取り(ペットが読み上げる演出=モーダル)
+  el.querySelectorAll("[data-memo]").forEach((b) => {
+    b.onclick = async () => {
+      const k = b.dataset.memo;
+      const mm = (S.shared?.memo || {})[k];
+      if (!mm) return;
+      modal({ title: "🐾 ペットのことづけ", body: `
+        <p class="center" style="font-size:15px">「${esc(paP.name)}から あずかったよ!」</p>
+        <div class="memo-paper">${esc(mm.text)}</div>
+        <p class="dim small center">${new Date(mm.ts).toLocaleString("ja-JP")}</p>`,
+        actions: [{ label: "うけとった💗", cls: "btn-primary" }] });
+      await tx(`shared/memo/${k}/readBy/${S.uid}`, () => true);
+      // 双方が読んだ伝言は掃除(肥大化防止)
+      const after = (S.shared?.memo || {})[k];
+      if (after && pu && after.readBy?.[pu] || mm.from === S.uid) { /* 相手側の掃除に任せる */ }
+      render(el.closest("#sheet-body") || el);
+    };
+  });
+
+  // 伝言をたのむ
+  const bm = el.querySelector("#btn-memo");
+  if (bm) bm.onclick = () => {
+    const body = document.createElement("div");
+    body.innerHTML = `<p class="dim small">ペットが ${esc(paP.name)}に とどけてくれるよ</p>
+      <input class="txt-input" id="memo-in" maxlength="60" placeholder="つたえたいこと">`;
+    modal({ title: "💌 ことづけをたのむ", body, actions: [
+      { label: "やめる", cls: "btn-ghost" },
+      { label: "たのむ!", cls: "btn-primary", onClick: async (c) => {
+          const t = body.querySelector("#memo-in").value.trim();
+          if (!t) { toast("なにか かいてね", "✍️"); return; }
+          await push(r("shared/memo"), { from: S.uid, text: t, ts: Date.now(), readBy: { [S.uid]: true } });
+          learnWord(t);
+          toast("ペットに ことづけたよ", "🐾");
+          c(); render(el.closest("#sheet-body") || el);
+        } } ] });
+  };
+
+  // なぞなぞをしかける
+  const bn = el.querySelector("#btn-nazo");
+  if (bn) bn.onclick = () => {
+    const body = document.createElement("div");
+    body.innerHTML = `
+      <input class="txt-input" id="nz-q" maxlength="60" placeholder="もんだい(例: あかくてまるい くだものは?)">
+      <input class="txt-input" id="nz-a" maxlength="12" placeholder="こたえ" style="margin-top:8px">
+      <input class="txt-input" id="nz-h" maxlength="30" placeholder="ヒント(なくてもOK)" style="margin-top:8px">`;
+    modal({ title: "❓ なぞなぞをしかける", body, actions: [
+      { label: "やめる", cls: "btn-ghost" },
+      { label: "しかける!", cls: "btn-primary", onClick: async (c) => {
+          const q = body.querySelector("#nz-q").value.trim();
+          const a = body.querySelector("#nz-a").value.trim();
+          if (!q || !a) { toast("もんだいと こたえを かいてね", "✍️"); return; }
+          await tx("shared/nazo", () => ({ from: S.uid, question: q, answer: toYomi(a),
+            hint: body.querySelector("#nz-h").value.trim() || null, ts: Date.now(), solvedAt: null }));
+          toast("なぞなぞを しかけたよ!", "❓");
+          c(); render(el.closest("#sheet-body") || el);
+        } } ] });
+  };
+
+  // なぞなぞにこたえる
+  const ng = el.querySelector("#nazo-go");
+  if (ng) ng.onclick = async () => {
+    const ans = el.querySelector("#nazo-ans").value.trim();
+    if (!ans) return;
+    const nazo = nazoData();
+    if (!nazo) return;
+    if (toYomi(ans) === nazo.answer) {
+      await tx("shared/nazo/solvedAt", () => Date.now());
+      await addCoins(30); await addFood(1);
+      learnWord(ans);
+      confetti(24);
+      toast("せいかい! 🪙30 と 🍚 をもらった!", "🎉");
+      render(el.closest("#sheet-body") || el);
+    } else {
+      toast("ちがうみたい…もういちど!", "🤔");
+    }
+  };
 }

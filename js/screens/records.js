@@ -223,7 +223,20 @@ function showReplay(rec) {
         <p>${Object.entries(x.w || {}).map(([uid, w]) =>
           `<b style="color:${personOf(uid).color}">${esc(personOf(uid).name)}</b>「${esc(w)}」`).join(" / ")}</p>
       </div>`).join("");
+  } else if (rec.gameId === "omoide" && d.qs) {
+    html = d.qs.map((q, i) => `
+      <div class="ans-view" style="--pc:var(--latte)">
+        <small>もんだい${i + 1}</small><p>${esc(q.text)} → <b>${esc(q.answer)}</b></p>
+      </div>`).join("") + `<p class="center result-stars">${Object.entries(d.scores || {}).map(([uid, n]) =>
+      `${personOf(uid).emoji}${n}`).join(" - ")}</p>`;
+  } else if (rec.gameId === "kokoro" && d.rounds) {
+    html = d.rounds.map((x, i) => `
+      <div class="ans-view" style="--pc:${x.hit ? "var(--leaf)" : "var(--latte)"}">
+        <small>${esc(x.q || `おだい${i + 1}`)} ${x.hit ? "💞" : ""}</small>
+        <p>こたえ「${esc(x.ans || "")}」/ よそう「${esc(x.pred || "")}」</p>
+      </div>`).join("");
   } else if (rec.gameId === "guess" && d.log) {
+    // 撤去済みゲームの過去記録も読めるよう閲覧のみ維持
     html = `<p class="center">こたえは <b>${d.answer}</b></p>` + d.log.map((gg) => `
       <div class="ans-view" style="--pc:${personOf(gg.uid).color}">
         <small>${esc(personOf(gg.uid).name)}</small><p>${gg.n} ${gg.hit ? "🎯" : ""}</p>
@@ -284,11 +297,11 @@ async function paintDex(body) {
 }
 
 // =====================================================================
-// ⑯ 月間ふりかえりカード(画像で保存できる)
+// ⑯ 月末絵日記「ぼくのえにっき」(ペット視点の1枚絵+日記文・画像保存可)
 // =====================================================================
 async function paintCard(body) {
-  body.innerHTML = `<p class="dim center small">今月のあゆみを1枚のカードにするよ</p>
-    <div class="center"><button class="btn btn-primary" id="mk-card">🖼️ カードを作る</button></div>
+  body.innerHTML = `<p class="dim center small">ペットが「ぼくが見たふたり」を えにっきにするよ(月末にどうぞ)</p>
+    <div class="center"><button class="btn btn-primary" id="mk-card">📔 えにっきを かいてもらう</button></div>
     <div id="card-out" class="center" style="margin-top:12px"></div>`;
   body.querySelector("#mk-card").onclick = async () => {
     const out = body.querySelector("#card-out");
@@ -328,9 +341,9 @@ async function buildMonthlyCard() {
   // タイトル
   c.fillStyle = "#5C4B3A";
   c.font = "bold 54px 'Zen Maru Gothic', sans-serif"; c.textAlign = "center";
-  c.fillText("ふたりのひだまり", W / 2, 110);
+  c.fillText("ぼくの えにっき", W / 2, 110);
   c.font = "bold 40px 'Zen Maru Gothic', sans-serif";
-  c.fillText(`${ym.replace("-", "年")}月の おもいで`, W / 2, 175);
+  c.fillText(`${ym.replace("-", "年")}月 ・ ${(S.pet?.name || "ぼく")}より`, W / 2, 175);
   // ペット(SVG→画像化)
   const svg = renderPetSVG(pet, { expression: "happy" });
   const img = new Image();
@@ -341,11 +354,13 @@ async function buildMonthlyCard() {
   c.drawImage(img, W / 2 - 240, 210, 480, 406);
   // ステータス
   const rows = [
-    [`🗓 あそんだ日`, `${days}日`], [`🎮 対決した回数`, `${games}回`],
-    [`🍚 ごはんをあげた`, `${feeds}回`], [`🐣 ${pet.name || "ペット"}`, `Lv${pet.level || 1}`],
-    [`💗 かけら累計`, `${S.shared?.heartsTotal || 0}こ`],
+    [`こんげつは ${days}日 あそんでもらったよ`, ""],
+    [`しょうぶは ${games}回 もりあがった!`, ""],
+    [`ごはんを ${feeds}回 もらって おなかいっぱい`, ""],
+    [`ぼくは いま Lv${pet.level || 1} まで おおきくなった`, ""],
+    [`ふたりの かけらは ぜんぶで ${S.shared?.heartsTotal || 0}こ 💗`, ""],
   ];
-  c.font = "bold 34px 'Zen Maru Gothic', sans-serif";
+  c.font = "bold 28px 'Zen Maru Gothic', sans-serif";
   rows.forEach(([k, v], i) => {
     const y = 700 + i * 74;
     c.fillStyle = "rgba(255,253,248,.85)";

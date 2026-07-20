@@ -8,6 +8,7 @@ import { APP } from "../config.js";
 import { rand, hourNow, isSleepTime, dailyPick, todayStr } from "../core/ui.js";
 import { DIALOGUE } from "../data/dialogues.js";
 import { effHunger, moodOf, topAxis } from "./pet.js";
+import { memoryLine, dreamLine } from "../core/memory.js";
 import { boostToday } from "../core/economy.js";
 
 /** プレースホルダを実名に置換 */
@@ -29,6 +30,21 @@ function partnerActiveToday() {
  * event を指定すると特定イベント("fed"/"petted"など)のセリフを返す。
  */
 export function speak(event = null) {
+  // 拗ねモード(ケンカ検知): ふたりとも3日以上来なかった直後は、まず拗ねる
+  if (!event && sessionStorage.getItem("hdm_sulk") === "1") {
+    sessionStorage.removeItem("hdm_sulk");
+    return fill(rand(DIALOGUE.sulk));
+  }
+  // ねむり中は ときどき夢の寝言(記憶ベース)
+  if (!event && isSleepTime() && Math.random() < 0.5) {
+    const dm = dreamLine();
+    if (dm) return fill(dm);
+  }
+  // 平常時は 25%で「記憶」から話す(この子は覚えている、の体験)
+  if (!event && Math.random() < 0.25) {
+    const ml = memoryLine();
+    if (ml) return fill(ml);
+  }
   const D = DIALOGUE;
   if (event && D[event]) return fill(rand(D[event]));
 
@@ -54,7 +70,7 @@ export function speak(event = null) {
 
 /** きょうのおねだり対象 */
 export function todaysWish() {
-  return dailyPick(["wordmatch", "coin", "talk", "memory", "guess", "uno"], 7);
+  return dailyPick(["wordmatch", "coin", "talk", "omoide", "kokoro"], 7);
 }
 function wantLines() {
   const w = todaysWish();
